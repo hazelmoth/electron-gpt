@@ -1,6 +1,7 @@
 node_modules
+build
 .env
 .vscode
 styles.css
 out/
-database.sqlite3
+database.sqlite3.env

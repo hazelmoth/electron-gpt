@@ -1,46 +1,22 @@
 // Modules to control application life and create native browser window
 const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron')
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");
 const MarkdownIt = require('markdown-it');
 const { v4: uuidv4 } = require("uuid");
+const fs = require('fs');
 
-require('dotenv').config();
+require('dotenv').config({ path: __dirname + '/.env' });
 
 const { getMessageHistoryOrCreateMessage, updateConversation, getConversations, getConversationFromID, deleteConversation } = require("./models/conversation");
 
 const md = new MarkdownIt();
 const path = require('path')
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const openai = new OpenAIApi(configuration);
-
-// Get the message history or create a new conversation
-async function generateText(prompt, conversationId) {
-  try {
-    const { messageHistory, conversationId: newConversationId } = await getMessageHistoryOrCreateMessage(conversationId, prompt);
-
-    const completion = await openai.createChatCompletion({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful assistant. You speak on French language." },
-        ...messageHistory,
-      ],
-    });
-
-    const assistantMessage = completion.data.choices[0].message.content;
-    messageHistory.push({ role: "assistant", content: assistantMessage });
-
-    await updateConversation(newConversationId, messageHistory);
-
-    return { assistantMessage, conversationId: newConversationId };
-  } catch (error) {
-    console.error('Error while generating text:', error);
-    throw error;
-  }
-}
+const { generateText } = require("./gptwrapper");
 
 function renderMarkdown(message) {
   return md.render(message);
@@ -49,14 +25,9 @@ function renderMarkdown(message) {
 function createWindow() {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1600,
+    height: 1200,
     icon: 'assets/favicon.ico',
-    // titleBarStyle: 'hidden',
-    // titleBarOverlay: {
-    //   color: '#1e293b',
-    //   symbolColor: '#f1f5f9'
-    // },
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
