@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, ChannelType, Events, MessageMentions } = require('discord.js');
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -26,7 +26,6 @@ async function generateAssistantResponse(prompt, conversationId) {
 async function generateResponseGPT3(prompt) {
   try {
     const response = await generateTextGeneric(prompt, "gpt-3.5-turbo");
-    console.log(`GPT-3.5 Turbo response: "${response}"`);
     return response;
   } catch (error) {
     console.error('Error in generateResponseGPT3:', error);
@@ -38,20 +37,33 @@ client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`);
 });
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
+client.commands = new Map();
+client.commands.set('setmodel', require('./commands/setmodel/setmodel-cmd'));
+client.on(Events.InteractionCreate, async interaction => {
+	if (!interaction.isChatInputCommand()) return;
 
-  const { commandName } = interaction;
+	const command = interaction.client.commands?.get(interaction.commandName);
 
-  // Example command handling
-  if (commandName === 'your_command') {
-    // Your command logic here
-  }
+	if (!command) {
+		console.error(`No command matching ${interaction.commandName} was found.`);
+		return;
+	}
+
+	try {
+		await command.execute(interaction);
+	} catch (error) {
+		console.error(error);
+		if (interaction.replied || interaction.deferred) {
+			await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+		} else {
+			await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+		}
+	}
 });
 
 client.on('messageCreate', async msg => {
   // Do not respond to messages sent by the bot itself
-  if (msg.author.bot) return;
+  if (msg.author.id === client.user.id) return;
 
   console.log(`RECEIVED:"${msg.content}"`);
 
@@ -80,8 +92,7 @@ client.on('messageCreate', async msg => {
       last10Messages = last10Messages.map(m => replaceMentions(m, client));
 
       const context = last10Messages.join('\n');
-      const contextCheckPrompt = `You are a discord user with the username "${client.user.displayName}". There's a new message in the channel #${channel.name}. The last 10 messages (in chronological order) are:\n\n${context}\n\nDo you respond? (is it addressed to you? Relevant to you? Part of a conversation you're in? Someone trying to get your attention? A follow-up to something you said? A question following something you said? Something controversial about robots? Anything seconds after something you said is probably to you.) ONLY return "Yes" or "No".`;
-      console.log(`Context check prompt:\n${contextCheckPrompt}`);
+      const contextCheckPrompt = `You are a discord user with the username "${client.user.displayName}". There's a new message in the public channel #${channel.name}. The last 10 messages (in chronological order) are:\n\n${context}\n\nDo you respond? (is it addressed to you? Relevant to you? Part of a conversation you're in? Someone trying to get your attention? A follow-up to something you said? A question following something you said? Something controversial about robots? Don't respond to messages directed at someone else.) ONLY return "Yes" or "No".`;
       const response = await generateResponseGPT3(contextCheckPrompt);
       if (response.toLowerCase() === 'yes') {
         console.log(`Decided to respond to message "${msg.content}"`);
@@ -100,10 +111,11 @@ client.on('messageCreate', async msg => {
       let prompt = msg.content;
       prompt = replaceMentions(prompt, client);
       prompt = `[${msg.author.displayName}] ${prompt}`;
+      console.log(`PROMPT:"${prompt}"`);
 
       await msg.channel.sendTyping();
       const response = await generateAssistantResponse(prompt, msg.author.id);
-      await msg.channel.send(response);
+      await sendMultiLineMessage(msg.channel, response);
     } catch (error) {
       await msg.reply('⚠️ ERROR ERROR something broke ⚠️');
       console.error("Error in client.on('messageCreate'):", error);
@@ -111,23 +123,78 @@ client.on('messageCreate', async msg => {
   }
 });
 
-// Replace all mentions in a string with <@nickname> or <@nickname (YOU)>
-function replaceMentions(msg, client) {
-  const mentionRegex = new RegExp(`<@!?${client.user.id}>`, 'g');
-  msg = msg.replace(mentionRegex, `<@${client.user.displayName} (YOU)>`).trim();
-  
-  const otherMentionRegex = /<@!?(\d+)>/g;
-  msg = msg.replace(otherMentionRegex, (match, id) => {
-    const member = msg.guild?.members?.cache?.get(id);
-    if (member) {
-      return member.displayName;
-    } else {
-      return match;
+// an async function that will break up a message by line breaks and send each line as a separate message, waiting briefly between each one.
+// also breaks up by sentences (. or ? or !), only if the combined sentence is longer than 40 characters.
+// never breaks up a message that is longer than 300 characters in total.
+// never breaks up a message containing ``` (code blocks).
+async function sendMultiLineMessage(channel, message) {
+  if (message.includes('```') || message.length > 300) {
+    await channel.send(message);
+    return;
+  }
+  const lines = message.split('\n');
+  for (const line of lines) {
+    if (line.length > 40) {
+      const sentences = line.split(/(?<=[.?!])\s+(?=[a-z])/);
+      for (const sentence of sentences) {
+        if (sentence.trim().length === 0) continue;
+        await new Promise(resolve => setTimeout(resolve, 250));
+        await channel.send(sentence);
+      }
+      continue;
     }
-  });
 
-  return msg;
+    if (line.trim().length === 0) continue;
+    await new Promise(resolve => setTimeout(resolve, 250));
+    await channel.send(line);
+  }
 }
+
+// Replace all mentions in a message with <@nickname> or <@nickname (YOU)>
+// function replaceMentions(msgContent, msg, client) {
+//   const mentionRegex = new RegExp(`<@!?${client.user.id}>`, 'g');
+//   let result = msgContent.replace(mentionRegex, `<@${client.user.displayName} (YOU)>`).trim();
+  
+//   const otherMentionRegex = new RegExp(`<@!?([0-9]+)>`, 'g');
+//   result = result.replace(otherMentionRegex, (match, id) => {
+//     const member = msg.guild?.members.cache.get(id);
+//     console.log(`Replacing mention ${match} with ${member?.displayName}`);
+//     console.log(`guild: ${msg.guild}`);
+//     if (member) {
+//       return member.displayName;
+//     } else {
+//       return match;
+//     }
+//   });
+
+//   return result;
+// }
+
+// Rewritten version that uses the mentions property
+function replaceMentions(msgContent, client) {
+  let result = msgContent;
+  const matches = msgContent.matchAll(/<@!?([0-9]+)>/g);
+
+  for (const match of matches) {
+    const id = match[1];
+    const user = client.users.cache.get(id);
+    if (user) {
+      if (user.id === client.user.id) {
+        result = result.replace(match[0], `<@${client.user.displayName} (YOU)>`);
+        console.log(`Replacing mention ${match[0]} with <@${client.user.displayName} (YOU)>`);
+      }
+      else {
+        result = result.replace(match[0], `<@${user.displayName}>`);
+        console.log(`Replacing mention ${match[0]} with ${user.displayName}`);
+      }
+    }
+  }
+
+  return result;
+}
+    
+
+    
 
 // Factor out the time elapsed code from above, and include hours/days:
 function timeElapsedString(timestamp) {
