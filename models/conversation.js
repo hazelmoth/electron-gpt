@@ -82,6 +82,14 @@ async function deleteConversation(id) {
     }
 }
 
+// Takes the given fraction of the message history and aggregates it into one message using the given function.
+function aggregateMessages(messageHistory, fraction, aggregateFunction) {
+    const messageCount = messageHistory.length;
+    const startIndex = Math.floor(messageCount * (1 - fraction));
+    const messages = messageHistory.slice(startIndex, messageCount);
+    return aggregateFunction(messages);
+}
+
 (async () => {
     await sequelize.sync();
 })();
