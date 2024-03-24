@@ -1,6 +1,9 @@
 {
     "compilerOptions": {
-        "resolveJsonModule": true, // Add this line
+        "target": "es2015", // Change target to "es2015" or higher
+        "moduleResolution": "NodeNext",
+        "module": "NodeNext",
+        "resolveJsonModule": true,
         // other compiler options...
     },
     "include": [

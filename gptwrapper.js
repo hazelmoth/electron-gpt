@@ -10,7 +10,7 @@ const openai = new OpenAI({
 });
 
 // Get the message history or create a new conversation
-async function generateText(prompt, conversationId) {
+async function generateTextGpt(prompt, conversationId) {
     try {
         // Try to get the enironment variable for the model
         const standardModel = "gpt-4-1106-preview";
@@ -74,7 +74,7 @@ async function generateText(prompt, conversationId) {
 
 // Generate a one-off response, without using the system message or conversation history.
 // Returns the response text.
-async function generateTextGeneric(prompt, model) {
+async function generateTextGenericGpt(prompt, model) {
     try {
         const completion = await openai.chat.completions.create({
             model: model,
@@ -97,5 +97,5 @@ async function generateTextGeneric(prompt, model) {
 }
 
 module.exports = {
-    generateText, generateTextGeneric
+    generateTextGpt, generateTextGenericGpt
 };

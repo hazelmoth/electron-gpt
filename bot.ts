@@ -1,3 +1,4 @@
+// bot.ts
 const { Client, GatewayIntentBits, Partials, ChannelType, Events, MessageMentions } = require('discord.js');
 const client = new Client({
   intents: [
@@ -9,11 +10,14 @@ const client = new Client({
   ],
   partials: [Partials.Channel]
 });
-const { generateText, generateTextGeneric } = require('./gptwrapper');
+
+const { generateText } = require('./claudeai');
+const { generateTextGpt, generateTextGenericGpt } = require('./gptwrapper');
+
 
 require('dotenv').config({ path: __dirname + '/.env' });
 
-async function generateAssistantResponse(prompt, conversationId) {
+async function generateAssistantResponse(prompt: string, conversationId) {
   try {
     const response = await generateText(prompt, conversationId);
     return response.assistantMessage;
@@ -25,7 +29,7 @@ async function generateAssistantResponse(prompt, conversationId) {
 
 async function generateResponseGPT3(prompt) {
   try {
-    const response = await generateTextGeneric(prompt, "gpt-3.5-turbo");
+    const response = await generateTextGenericGpt(prompt, "gpt-3.5-turbo");
     return response;
   } catch (error) {
     console.error('Error in generateResponseGPT3:', error);
@@ -127,7 +131,7 @@ client.on('messageCreate', async msg => {
 // also breaks up by sentences (. or ? or !), only if the combined sentence is longer than 40 characters.
 // never breaks up a message that is longer than 300 characters in total.
 // never breaks up a message containing ``` (code blocks).
-async function sendMultiLineMessage(channel, message) {
+async function sendMultiLineMessage(channel, message: string) {
   if (message.includes('```') || message.length > 300) {
     await channel.send(message);
     return;
