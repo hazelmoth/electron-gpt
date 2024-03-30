@@ -53,6 +53,7 @@ client.on('ready', () => {
 });
 client.commands = new Map();
 client.commands.set('setmodel', require('./commands/setmodel/setmodel-cmd'));
+client.commands.set('aggregate', require('./commands/aggregate/aggregate-cmd'));
 client.on(Events.InteractionCreate, (interaction) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     if (!interaction.isChatInputCommand())
