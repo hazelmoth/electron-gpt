@@ -3,7 +3,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 require('dotenv').config({ path: __dirname + '/.env' });
 
-const prompt = "you are a discord bot called Melu. right now you are condensing your memory of events. for the following message history, return a concise bullet-point first-person summary of 500 words or less that summarizes the most important things to remember about the message history. if there's already a message summarizing previous info, FULLY INCLUDE THAT CONTEXT in your summary; don't just continue where it leaves off. if there is nothing important, just say whatever details there are. include nothing other than the bullet points. do not offer any additional commentary, analysis, or explanation.";
+const prompt = "you are a discord bot called Melu. right now you are condensing your memory of events. for the following message history, return a concise bullet-point first-person summary of 1000 words or less that summarizes the most important things to remember about the message history. if there's already a message summarizing previous info, FULLY INCLUDE THAT CONTEXT in your summary; don't just continue where it leaves off. if there is nothing important, just say whatever details there are. include nothing other than the bullet points. do not offer any additional commentary, analysis, or explanation.";
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -22,6 +22,7 @@ module.exports = {
         const { generateTextGeneric } = require("../../claudeai");
         const conversations = await getConversations();
         console.log('Found ' + conversations.length + ' conversations');
+        
         for (const conversation of conversations) {
             console.log('Aggregating conversation ' + conversation.id);
             console.log('Messages string length: ' + conversation.messages.length);
@@ -39,8 +40,6 @@ module.exports = {
             } catch (error) {
                 console.error("Error generating summary:", error);
             }
-
-            console.log('Summary: ' + summary);
 
             if (summary === '' || summary === null || summary === undefined) {
                 console.log('Failed to generate summary');

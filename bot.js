@@ -121,6 +121,10 @@ client.on('messageCreate', (msg) => __awaiter(void 0, void 0, void 0, function* 
             let prompt = msg.content;
             prompt = replaceMentions(prompt, client);
             prompt = `[${msg.author.displayName}] ${prompt}`;
+            // Prefix with either (Direct Message, $timestamp) or (#channelname, $timestamp)
+            const channelName = msg.channel.type === ChannelType.DM ? 'Direct Message' : `#${msg.channel.name}`;
+            const time = msg.createdTimestamp;
+            prompt = `(${channelName}, $$$${time}$$$) ${prompt}`;
             console.log(`PROMPT:"${prompt}"`);
             yield msg.channel.sendTyping();
             const response = yield generateAssistantResponse(prompt, msg.author.id);

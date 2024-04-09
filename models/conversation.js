@@ -34,6 +34,10 @@ function updateConversation(id, messageHistory) {
         }
     });
 }
+/* Adds the given prompt to the message history of the conversation with the given ID.
+ *  If the conversation does not exist, it is created with the given prompt as the first message.
+/  Returns the message history and the conversation ID.
+*/
 function getMessageHistoryOrCreateMessage(conversationId, prompt) {
     return __awaiter(this, void 0, void 0, function* () {
         const [conversation, created] = yield Conversation.findOrCreate({
@@ -120,7 +124,7 @@ function makeAlternating(messageHistory) {
     for (const message of messageHistory) {
         if (lastRole === message.role) {
             const lastMessage = alternatingMessages.pop();
-            lastMessage.content += "\n" + message.content;
+            lastMessage.content += "\n\n" + message.content;
             alternatingMessages.push(lastMessage);
         }
         else {

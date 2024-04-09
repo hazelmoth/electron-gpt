@@ -5,3 +5,4 @@ build
 styles.css
 out/
 database.sqlite3.env
+*.sqlite3
