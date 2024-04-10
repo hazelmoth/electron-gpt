@@ -41,6 +41,7 @@ const anthropic = new sdk_1.default({
 function generateText(prompt, conversationId) {
     return __awaiter(this, void 0, void 0, function* () {
         conversationId = "GLOBAL"; // experimental
+        // prefix
         try {
             const { messageHistory, conversationId: newConversationId } = yield getMessageHistoryOrCreateMessage(conversationId, prompt);
             // apply formatting
@@ -48,7 +49,7 @@ function generateText(prompt, conversationId) {
             const completion = yield anthropic.messages.create({
                 model: "claude-3-opus-20240229",
                 max_tokens: 4096,
-                system: sysmsg,
+                system: `[Current time: ${new Date().toLocaleString()} pacific]\n\n${sysmsg}`,
                 messages: [...messageHistoryFormatted],
                 temperature: 0.15
             });
@@ -90,6 +91,9 @@ function generateTextGeneric(prompt, model) {
 exports.generateTextGeneric = generateTextGeneric;
 function timeElapsedString(timestamp) {
     let timeElapsed = Date.now() - timestamp;
+    if (timeElapsed < 1000) {
+        return 'just now';
+    }
     timeElapsed = Math.floor(timeElapsed / 1000);
     if (timeElapsed < 60) {
         return `${timeElapsed} seconds ago`;

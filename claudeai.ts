@@ -32,6 +32,8 @@ export async function generateText(prompt, conversationId) {
     
     conversationId = "GLOBAL" // experimental
 
+    // prefix
+
     try {
         const { messageHistory, conversationId: newConversationId } = await getMessageHistoryOrCreateMessage(conversationId, prompt);
 
@@ -41,7 +43,7 @@ export async function generateText(prompt, conversationId) {
         const completion = await anthropic.messages.create({
             model: "claude-3-opus-20240229",
             max_tokens: 4096,
-            system: sysmsg,
+            system: `[Current time: ${new Date().toLocaleString()} pacific]\n\n${sysmsg}`,
             messages: [...messageHistoryFormatted],
             temperature: 0.15
           });
@@ -84,6 +86,11 @@ export async function generateTextGeneric(prompt, model): Promise<string> {
 
 function timeElapsedString(timestamp: number) {
         let timeElapsed = Date.now() - timestamp;
+
+        if (timeElapsed < 1000) {
+            return 'just now';
+        }
+
         timeElapsed = Math.floor(timeElapsed / 1000);
         if (timeElapsed < 60) {
             return `${timeElapsed} seconds ago`;

@@ -13,6 +13,7 @@ const client = new Client({
 
 const { generateText } = require('./claudeai');
 const { generateTextGpt, generateTextGenericGpt } = require('./gptwrapper');
+const { addMessageToConversation } = require("./models/conversation");
 
 
 require('dotenv').config({ path: __dirname + '/.env' });
@@ -70,15 +71,13 @@ client.on('messageCreate', async msg => {
   // Do not respond to messages sent by the bot itself
   if (msg.author.id === client.user.id) return;
 
-  console.log(`RECEIVED:"${msg.content}"`);
-
   const isMentioned = msg.mentions.has(client.user);
 
-  // If this is a guild message not mentioning us, we prompt GPT-3.5 Turbo to ask if we should respond
-  // based on the last 10 messages in the channel.
-  let respondToNonMention = false;
-  if (msg.guild && !isMentioned) {
-    try {
+  try {
+    // If this is a guild message not mentioning us, we prompt an LLM asking if we should respond
+    // based on the last 10 messages in the channel.
+    let respondToNonMention = false;
+    if (msg.guild && !isMentioned) {
       const channel = await msg.guild.channels.fetch(msg.channel.id);
       let last10Messages = await channel.messages.fetch({ limit: 10 });
       last10Messages = last10Messages.reverse();
@@ -106,33 +105,44 @@ client.on('messageCreate', async msg => {
       else {
         console.log(`Context check yielded response "${response}". Not responding to message.`);
       }
-    } catch (error) {
-      console.error("Error in client.on('messageCreate'):", error);
     }
-  }
 
-  if (msg.channel.type === ChannelType.DM || (msg.guild && isMentioned) || respondToNonMention) {
-    try {
-      let prompt = msg.content;
-      prompt = replaceMentions(prompt, client);
-      prompt = `[${msg.author.displayName}] ${prompt}`;
+    let msgText = formatMessage(msg);
 
-      // Prefix with either (Direct Message, $timestamp) or (#channelname, $timestamp)
-      const channelName = msg.channel.type === ChannelType.DM ? 'Direct Message' : `#${msg.channel.name}`;
-      const time = msg.createdTimestamp;
-      prompt = `(${channelName}, $$$${time}$$$) ${prompt}`;
+    console.log(`RECEIVED:\n"${msgText}"`);
 
-      console.log(`PROMPT:"${prompt}"`);
-
-      await msg.channel.sendTyping();
-      const response = await generateAssistantResponse(prompt, msg.author.id);
-      await sendMultiLineMessage(msg.channel, response);
-    } catch (error) {
-      await msg.reply('⚠️ ERROR ERROR something broke ⚠️');
-      console.error("Error in client.on('messageCreate'):", error);
+    if (msg.channel.type === ChannelType.DM || (msg.guild && isMentioned) || respondToNonMention) {
+        await msg.channel.sendTyping();
+        const response = await generateAssistantResponse(msgText, msg.author.id);
+        await sendMultiLineMessage(msg.channel, response);
+    } else {
+      // We're not responding to this message, but we still update the conversation history.
+        const conversationId = "GLOBAL";
+        await addMessageToConversation(conversationId, msgText, 'user');
+        console.log(`Added message to conversation history: ${msgText}`);
     }
+  } catch (error) {
+    console.error("Error in client.on('messageCreate'):", error);
   }
 });
+
+/** 
+ * Given a message object, returns the message content formatted as
+ * "(#channel, $$$timestamp$$$) [username] content".
+ * If includeChannel is false, the result will be formatted as
+ * "($$$timestamp$$$) [username] content".
+ */
+function formatMessage(msg: any, includeChannel: boolean = true) {
+  const channelName = msg.channel.type === ChannelType.DM ? 'Direct Message' : `#${msg.channel.name}`;
+  const time = msg.createdTimestamp;
+  let msgText = msg.content;
+  msgText = replaceMentions(msgText, client);
+  if (includeChannel) {
+    return `(${channelName}, $$$${time}$$$) [${msg.author.displayName}] ${msgText}`;
+  } else {
+    return `($$$${time}$$$) [${msg.author.displayName}] ${msgText}`;
+  }
+}
 
 // an async function that will break up a message by line breaks and send each line as a separate message, waiting briefly between each one.
 // also breaks up by sentences (. or ? or !), only if the combined sentence is longer than 40 characters.
@@ -188,6 +198,11 @@ function replaceMentions(msgContent, client) {
     
 function timeElapsedString(timestamp) {
   let timeElapsed = Date.now() - timestamp;
+
+  if (timeElapsed < 1000) {
+    return 'just now';
+  }
+
   timeElapsed = Math.floor(timeElapsed / 1000);
   if (timeElapsed < 60) {
     return `${timeElapsed} seconds ago`;

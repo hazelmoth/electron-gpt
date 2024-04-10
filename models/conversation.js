@@ -60,6 +60,32 @@ function getMessageHistoryOrCreateMessage(conversationId, prompt) {
         return { messageHistory, conversationId };
     });
 }
+/**
+ * Adds a message to the conversation with the given ID.
+ * If the conversation does not exist, it is created with the given message as the first message.
+ */
+function addMessageToConversation(conversationId, message, role) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const [conversation, created] = yield Conversation.findOrCreate({
+            where: { id: conversationId },
+            defaults: {
+                id: conversationId,
+                messages: JSON.stringify([{ role, content: message }])
+            }
+        });
+        let messageHistory;
+        if (!created) {
+            messageHistory = JSON.parse(conversation.messages);
+            messageHistory.push({ role, content: message });
+            yield conversation.update({ messages: JSON.stringify(messageHistory) });
+        }
+        else {
+            messageHistory = [{ role, content: message }];
+        }
+        messageHistory = makeAlternating(messageHistory);
+        return { messageHistory, conversationId };
+    });
+}
 function getConversations() {
     return __awaiter(this, void 0, void 0, function* () {
         const conversations = yield Conversation.findAll();
@@ -137,4 +163,4 @@ function makeAlternating(messageHistory) {
 (() => __awaiter(void 0, void 0, void 0, function* () {
     yield sequelize.sync();
 }))();
-module.exports = { getMessageHistoryOrCreateMessage, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };
+module.exports = { getMessageHistoryOrCreateMessage, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };
