@@ -11,9 +11,9 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-const { generateText } = require('./claudeai');
+const { generateText } = require('./src/models/claudeai');
 const { generateTextGpt, generateTextGenericGpt } = require('./gptwrapper');
-const { addMessageToConversation } = require("./models/conversation");
+const { addMessageToConversation } = require("./src/conversation");
 
 
 require('dotenv').config({ path: __dirname + '/.env' });
@@ -43,8 +43,8 @@ client.on('ready', () => {
 });
 
 client.commands = new Map();
-client.commands.set('setmodel', require('./commands/setmodel/setmodel-cmd'));
-client.commands.set('aggregate', require('./commands/aggregate/aggregate-cmd'));
+client.commands.set('setmodel', require('./src/commands/setmodel/setmodel-cmd'));
+client.commands.set('aggregate', require('./src/commands/aggregate/aggregate-cmd'));
 client.on(Events.InteractionCreate, async interaction => {
 	if (!interaction.isChatInputCommand()) return;
 
@@ -199,7 +199,7 @@ function replaceMentions(msgContent, client) {
 function timeElapsedString(timestamp) {
   let timeElapsed = Date.now() - timestamp;
 
-  if (timeElapsed < 1000) {
+  if (timeElapsed < 2000) {
     return 'just now';
   }
 

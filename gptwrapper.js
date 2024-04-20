@@ -3,7 +3,7 @@ const OpenAI = require("openai");
 const MarkdownIt = require('markdown-it');
 const { v4: uuidv4 } = require("uuid");
 const fs = require('fs');
-const { getMessageHistoryOrCreateMessage, updateConversation, getConversations, getConversationFromID, deleteConversation } = require("./models/conversation");
+const { getMessageHistoryOrCreateMessage, updateConversation, getConversations, getConversationFromID, deleteConversation } = require("./src/conversation");
 require('dotenv').config({ path: __dirname + '/.env' });
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,

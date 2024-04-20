@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-const { getMessageHistoryOrCreateMessage, updateConversation } = require("./models/conversation");
+const { getMessageHistoryOrCreateMessage, updateConversation } = require("../conversation");
 const dotenv = require('dotenv');
-dotenv.config({ path: __dirname + '/.env' });
+dotenv.config({ path: __dirname + '/../../.env' });
 
 const sysmsg = "you are melu, a strange discord bot designed to seem human foremost. BUT you don't pretend to be human, or to know more than an AI can know.\n\n" +
 "your owner calls themself hazel. they made up that name. your relationship with them is sometimes tense. but at a deep level you care about them.\n\n" +
@@ -25,6 +25,8 @@ const sysLengthWarning = "[System] This message was very long. Aim for no more t
 const anthropic = new Anthropic({
     apiKey: process.env.CLAUDE_API_KEY,
 });
+
+const model = "claude-3-opus-20240229";
   
 
 // Get the message history or create a new conversation
@@ -41,7 +43,7 @@ export async function generateText(prompt, conversationId) {
         const messageHistoryFormatted = replaceTimestamps(messageHistory);
 
         const completion = await anthropic.messages.create({
-            model: "claude-3-opus-20240229",
+            model: model,
             max_tokens: 4096,
             system: `[Current time: ${new Date().toLocaleString()} pacific]\n\n${sysmsg}`,
             messages: [...messageHistoryFormatted],
@@ -84,10 +86,28 @@ export async function generateTextGeneric(prompt, model): Promise<string> {
     }
 }
 
+/**
+ * Generate a response to a given prompt using the specified system message.
+ */
+export async function generate(prompt: string, systemMessage: string, temperature: number = 0.15, maxTokens: number = 4096): Promise<string> {
+    try {
+        const completion = await anthropic.messages.create({
+            model: model,
+            max_tokens: maxTokens,
+            system: systemMessage,
+            messages: [{ role: "user", content: prompt }],
+            temperature: temperature
+        });
+        return completion.content[0].text.trim();
+    } catch (error) {
+        console.error('Error while generating text:', error);
+    }
+}
+
 function timeElapsedString(timestamp: number) {
         let timeElapsed = Date.now() - timestamp;
 
-        if (timeElapsed < 1000) {
+        if (timeElapsed < 2000) {
             return 'just now';
         }
 

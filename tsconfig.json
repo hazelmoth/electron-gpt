@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "target": "es2015", // Change target to "es2015" or higher
+        "target": "es2020",
         "moduleResolution": "NodeNext",
         "module": "NodeNext",
         "resolveJsonModule": true,

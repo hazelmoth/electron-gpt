@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 // bot.ts
 const { Client, GatewayIntentBits, Partials, ChannelType, Events, MessageMentions } = require('discord.js');
@@ -21,63 +12,58 @@ const client = new Client({
     ],
     partials: [Partials.Channel]
 });
-const { generateText } = require('./claudeai');
+const { generateText } = require('./src/models/claudeai');
 const { generateTextGpt, generateTextGenericGpt } = require('./gptwrapper');
-const { addMessageToConversation } = require("./models/conversation");
+const { addMessageToConversation } = require("./src/conversation");
 require('dotenv').config({ path: __dirname + '/.env' });
-function generateAssistantResponse(prompt, conversationId) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const response = yield generateText(prompt, conversationId);
-            return response.assistantMessage;
-        }
-        catch (error) {
-            console.error('Error in generateAssistantResponse:', error);
-            throw error;
-        }
-    });
+async function generateAssistantResponse(prompt, conversationId) {
+    try {
+        const response = await generateText(prompt, conversationId);
+        return response.assistantMessage;
+    }
+    catch (error) {
+        console.error('Error in generateAssistantResponse:', error);
+        throw error;
+    }
 }
-function generateResponseGPT3(prompt) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const response = yield generateTextGenericGpt(prompt, "gpt-3.5-turbo");
-            return response;
-        }
-        catch (error) {
-            console.error('Error in generateResponseGPT3:', error);
-            throw error;
-        }
-    });
+async function generateResponseGPT3(prompt) {
+    try {
+        const response = await generateTextGenericGpt(prompt, "gpt-3.5-turbo");
+        return response;
+    }
+    catch (error) {
+        console.error('Error in generateResponseGPT3:', error);
+        throw error;
+    }
 }
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
 client.commands = new Map();
-client.commands.set('setmodel', require('./commands/setmodel/setmodel-cmd'));
-client.commands.set('aggregate', require('./commands/aggregate/aggregate-cmd'));
-client.on(Events.InteractionCreate, (interaction) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+client.commands.set('setmodel', require('./src/commands/setmodel/setmodel-cmd'));
+client.commands.set('aggregate', require('./src/commands/aggregate/aggregate-cmd'));
+client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand())
         return;
-    const command = (_a = interaction.client.commands) === null || _a === void 0 ? void 0 : _a.get(interaction.commandName);
+    const command = interaction.client.commands?.get(interaction.commandName);
     if (!command) {
         console.error(`No command matching ${interaction.commandName} was found.`);
         return;
     }
     try {
-        yield command.execute(interaction);
+        await command.execute(interaction);
     }
     catch (error) {
         console.error(error);
         if (interaction.replied || interaction.deferred) {
-            yield interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+            await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
         }
         else {
-            yield interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
         }
     }
-}));
-client.on('messageCreate', (msg) => __awaiter(void 0, void 0, void 0, function* () {
+});
+client.on('messageCreate', async (msg) => {
     // Do not respond to messages sent by the bot itself
     if (msg.author.id === client.user.id)
         return;
@@ -87,8 +73,8 @@ client.on('messageCreate', (msg) => __awaiter(void 0, void 0, void 0, function* 
         // based on the last 10 messages in the channel.
         let respondToNonMention = false;
         if (msg.guild && !isMentioned) {
-            const channel = yield msg.guild.channels.fetch(msg.channel.id);
-            let last10Messages = yield channel.messages.fetch({ limit: 10 });
+            const channel = await msg.guild.channels.fetch(msg.channel.id);
+            let last10Messages = await channel.messages.fetch({ limit: 10 });
             last10Messages = last10Messages.reverse();
             // Map each message to "[username][time elapsed] message content", or if it's from the bot, "[username (YOU)][time elapsed] message content"
             last10Messages = last10Messages.map(m => {
@@ -103,7 +89,7 @@ client.on('messageCreate', (msg) => __awaiter(void 0, void 0, void 0, function* 
             last10Messages = last10Messages.map(m => replaceMentions(m, client));
             const context = last10Messages.join('\n');
             const contextCheckPrompt = `You are a discord user with the username "${client.user.displayName}". There's a new message in the public channel #${channel.name}. The last 10 messages (in chronological order) are:\n\n${context}\n\nDo you respond? (is it addressed to you? Relevant to you? Part of a conversation you're in? Someone trying to get your attention? A follow-up to something you said? A question following something you said? Something controversial about robots? Don't respond to messages directed at someone else.) ONLY return "Yes" or "No".`;
-            const response = yield generateResponseGPT3(contextCheckPrompt);
+            const response = await generateResponseGPT3(contextCheckPrompt);
             if (response.toLowerCase() === 'yes') {
                 console.log(`Decided to respond to message "${msg.content}"`);
                 respondToNonMention = true;
@@ -115,21 +101,21 @@ client.on('messageCreate', (msg) => __awaiter(void 0, void 0, void 0, function* 
         let msgText = formatMessage(msg);
         console.log(`RECEIVED:\n"${msgText}"`);
         if (msg.channel.type === ChannelType.DM || (msg.guild && isMentioned) || respondToNonMention) {
-            yield msg.channel.sendTyping();
-            const response = yield generateAssistantResponse(msgText, msg.author.id);
-            yield sendMultiLineMessage(msg.channel, response);
+            await msg.channel.sendTyping();
+            const response = await generateAssistantResponse(msgText, msg.author.id);
+            await sendMultiLineMessage(msg.channel, response);
         }
         else {
             // We're not responding to this message, but we still update the conversation history.
             const conversationId = "GLOBAL";
-            yield addMessageToConversation(conversationId, msgText, 'user');
+            await addMessageToConversation(conversationId, msgText, 'user');
             console.log(`Added message to conversation history: ${msgText}`);
         }
     }
     catch (error) {
         console.error("Error in client.on('messageCreate'):", error);
     }
-}));
+});
 /**
  * Given a message object, returns the message content formatted as
  * "(#channel, $$$timestamp$$$) [username] content".
@@ -152,30 +138,28 @@ function formatMessage(msg, includeChannel = true) {
 // also breaks up by sentences (. or ? or !), only if the combined sentence is longer than 40 characters.
 // never breaks up a message that is longer than 300 characters in total.
 // never breaks up a message containing ``` (code blocks).
-function sendMultiLineMessage(channel, message) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (message.includes('```') || message.length > 300) {
-            yield channel.send(message);
-            return;
-        }
-        const lines = message.split('\n');
-        for (const line of lines) {
-            if (line.length > 40) {
-                const sentences = line.split(/(?<=[.?!])\s+(?=[a-z])/);
-                for (const sentence of sentences) {
-                    if (sentence.trim().length === 0)
-                        continue;
-                    yield new Promise(resolve => setTimeout(resolve, 250));
-                    yield channel.send(sentence);
-                }
-                continue;
+async function sendMultiLineMessage(channel, message) {
+    if (message.includes('```') || message.length > 300) {
+        await channel.send(message);
+        return;
+    }
+    const lines = message.split('\n');
+    for (const line of lines) {
+        if (line.length > 40) {
+            const sentences = line.split(/(?<=[.?!])\s+(?=[a-z])/);
+            for (const sentence of sentences) {
+                if (sentence.trim().length === 0)
+                    continue;
+                await new Promise(resolve => setTimeout(resolve, 250));
+                await channel.send(sentence);
             }
-            if (line.trim().length === 0)
-                continue;
-            yield new Promise(resolve => setTimeout(resolve, 250));
-            yield channel.send(line);
+            continue;
         }
-    });
+        if (line.trim().length === 0)
+            continue;
+        await new Promise(resolve => setTimeout(resolve, 250));
+        await channel.send(line);
+    }
 }
 // Replace all mentions in a message with <@nickname> or <@nickname (YOU)>
 function replaceMentions(msgContent, client) {
@@ -199,7 +183,7 @@ function replaceMentions(msgContent, client) {
 }
 function timeElapsedString(timestamp) {
     let timeElapsed = Date.now() - timestamp;
-    if (timeElapsed < 1000) {
+    if (timeElapsed < 2000) {
         return 'just now';
     }
     timeElapsed = Math.floor(timeElapsed / 1000);

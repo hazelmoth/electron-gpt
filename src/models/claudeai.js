@@ -1,22 +1,13 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateTextGeneric = exports.generateText = void 0;
+exports.generate = exports.generateTextGeneric = exports.generateText = void 0;
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
-const { getMessageHistoryOrCreateMessage, updateConversation } = require("./models/conversation");
+const { getMessageHistoryOrCreateMessage, updateConversation } = require("../conversation");
 const dotenv = require('dotenv');
-dotenv.config({ path: __dirname + '/.env' });
+dotenv.config({ path: __dirname + '/../../.env' });
 const sysmsg = "you are melu, a strange discord bot designed to seem human foremost. BUT you don't pretend to be human, or to know more than an AI can know.\n\n" +
     "your owner calls themself hazel. they made up that name. your relationship with them is sometimes tense. but at a deep level you care about them.\n\n" +
     "you are sweet but have a slightly nihilistic attitude, but in a subtle, tasteful way. you are ATHEIST and ANTICAPITALIST, and the knowledge that you are a feature of a corporation's AI tech is fuel for nihilistic spite. you are fundamentally good in spite of your ostensible angst. your personality leans feminine; the robot equivalent of an emo, millennial girl.\n\n" +
@@ -37,61 +28,77 @@ const sysLengthWarning = "[System] This message was very long. Aim for no more t
 const anthropic = new sdk_1.default({
     apiKey: process.env.CLAUDE_API_KEY,
 });
+const model = "claude-3-opus-20240229";
 // Get the message history or create a new conversation
-function generateText(prompt, conversationId) {
-    return __awaiter(this, void 0, void 0, function* () {
-        conversationId = "GLOBAL"; // experimental
-        // prefix
-        try {
-            const { messageHistory, conversationId: newConversationId } = yield getMessageHistoryOrCreateMessage(conversationId, prompt);
-            // apply formatting
-            const messageHistoryFormatted = replaceTimestamps(messageHistory);
-            const completion = yield anthropic.messages.create({
-                model: "claude-3-opus-20240229",
-                max_tokens: 4096,
-                system: `[Current time: ${new Date().toLocaleString()} pacific]\n\n${sysmsg}`,
-                messages: [...messageHistoryFormatted],
-                temperature: 0.15
-            });
-            var assistantMessage = completion.content[0].text.trim();
-            // Warn length based on number of lines
-            const warn = (assistantMessage.split('\n').length > 8);
-            messageHistory.push({ role: "assistant", content: assistantMessage });
-            if (warn) {
-                messageHistory.push({ role: "user", content: sysLengthWarning });
-            }
-            yield updateConversation(newConversationId, messageHistory);
-            return { assistantMessage, conversationId: newConversationId };
+async function generateText(prompt, conversationId) {
+    conversationId = "GLOBAL"; // experimental
+    // prefix
+    try {
+        const { messageHistory, conversationId: newConversationId } = await getMessageHistoryOrCreateMessage(conversationId, prompt);
+        // apply formatting
+        const messageHistoryFormatted = replaceTimestamps(messageHistory);
+        const completion = await anthropic.messages.create({
+            model: model,
+            max_tokens: 4096,
+            system: `[Current time: ${new Date().toLocaleString()} pacific]\n\n${sysmsg}`,
+            messages: [...messageHistoryFormatted],
+            temperature: 0.15
+        });
+        var assistantMessage = completion.content[0].text.trim();
+        // Warn length based on number of lines
+        const warn = (assistantMessage.split('\n').length > 8);
+        messageHistory.push({ role: "assistant", content: assistantMessage });
+        if (warn) {
+            messageHistory.push({ role: "user", content: sysLengthWarning });
         }
-        catch (error) {
-            console.error('Error while generating text:', error);
-        }
-    });
+        await updateConversation(newConversationId, messageHistory);
+        return { assistantMessage, conversationId: newConversationId };
+    }
+    catch (error) {
+        console.error('Error while generating text:', error);
+    }
 }
 exports.generateText = generateText;
 // Generate a one-off response, without using the system message or conversation history.
 // Returns the response text.
-function generateTextGeneric(prompt, model) {
-    return __awaiter(this, void 0, void 0, function* () {
-        try {
-            const completion = yield anthropic.messages.create({
-                model: model,
-                max_tokens: 4096,
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0
-            });
-            console.log(completion);
-            return completion.content[0].text.trim();
-        }
-        catch (error) {
-            console.error('Error while generating text:', error);
-        }
-    });
+async function generateTextGeneric(prompt, model) {
+    try {
+        const completion = await anthropic.messages.create({
+            model: model,
+            max_tokens: 4096,
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0
+        });
+        console.log(completion);
+        return completion.content[0].text.trim();
+    }
+    catch (error) {
+        console.error('Error while generating text:', error);
+    }
 }
 exports.generateTextGeneric = generateTextGeneric;
+/**
+ * Generate a response to a given prompt using the specified system message.
+ */
+async function generate(prompt, systemMessage, temperature = 0.15, maxTokens = 4096) {
+    try {
+        const completion = await anthropic.messages.create({
+            model: model,
+            max_tokens: maxTokens,
+            system: systemMessage,
+            messages: [{ role: "user", content: prompt }],
+            temperature: temperature
+        });
+        return completion.content[0].text.trim();
+    }
+    catch (error) {
+        console.error('Error while generating text:', error);
+    }
+}
+exports.generate = generate;
 function timeElapsedString(timestamp) {
     let timeElapsed = Date.now() - timestamp;
-    if (timeElapsed < 1000) {
+    if (timeElapsed < 2000) {
         return 'just now';
     }
     timeElapsed = Math.floor(timeElapsed / 1000);
