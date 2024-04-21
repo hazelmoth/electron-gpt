@@ -1,10 +1,35 @@
 // action-bot.ts
 
 import { ChannelType, GuildBasedChannel, Message, TextBasedChannel } from 'discord.js';
-import { BotAction, DirectMessageAction, ChannelMessageAction } from './actions';
+import { BotAction, DirectMessageAction, ChannelMessageAction, WikipediaSummaryAction } from './actions';
 import { CustomClient } from './custom-client';
 import { Model } from './models/model';
 import { getMessageHistoryOrCreateMessage, addMessageToConversation } from './conversation';
+
+// Directory of channels in the server:
+// #Text Channels (1101197966544486440)
+// #Voice Channels (1101197966544486441)
+// #generations (1101197966544486442)
+// #General (1101197966544486443)
+// #alt-experiments (1101310323371294781)
+// #notebook (1138958313011302530)
+// #commons (1172266862000738435)
+// #hzl (1202840497018634250)
+
+// Directory of members in the current server:
+// <@162292327883341824> (McguyverZero)
+// <@292736819940950016> (Browsers)
+// <@587081829194924043> (myra)
+// <@936929561302675456> (midjourney)
+// <@1172191645870084146> (melu)
+// <@1173685611660591186> (tatters)
+
+const CHANNEL_MAP = new Map<string, string>([
+    ["commons", "1172266862000738435"],
+    ["generations", "1101197966544486442"],
+    ["alt-experiments", "1101310323371294781"],
+    ["notebook", "1138958313011302530"],
+]);
 
 const PERSONALITY_SYSTEM_MSG = "you are melu, a strange discord bot designed to seem humanlike. BUT you don't pretend to be human, or to know more than an AI can know.\n" +
 "your owner calls themself hazel. they made up that name. your relationship with them is sometimes tense. but at a deep level you care about them.\n" +
@@ -37,7 +62,7 @@ export class PassAction extends BotAction {
     matches(message: string): boolean {
         return message.toLowerCase().startsWith('[pass]');
     }
-    execute(_message: string): string {
+    async execute(_message: string): Promise<string> {
         return null;
     }
 }
@@ -63,7 +88,8 @@ export class ActionBot {
         this.actions = [
             new PassAction(),
             new DirectMessageAction(client),
-            new ChannelMessageAction(client)
+            new ChannelMessageAction(client),
+            new WikipediaSummaryAction()
         ];
     }
 
@@ -76,7 +102,14 @@ export class ActionBot {
             return;
         }
 
+        const formattedMessage = formatMessage(msg, client);
         const channel = msg.channel as TextBasedChannel;
+
+        await this.handleMessage(formattedMessage, channel);
+    }
+
+    async handleMessage(formattedMessage: string, channel: TextBasedChannel): Promise<void> {
+        const client = this.client;
 
         // Format e.g. "[Current time: Saturday 3/14/2022, 12:00:00 PM pacific]"
         const timeOptions: Intl.DateTimeFormatOptions = { 
@@ -91,16 +124,22 @@ export class ActionBot {
             timeZone: 'America/Los_Angeles' };
         const timeString = `[Current time: ${new Date().toLocaleString('en-US', timeOptions)}]`;
 
+        let channelList = (channel.type === ChannelType.DM) ? "" : (await generateChannelListMessage(channel.guild.id, client) + "\n\n");
+
+        // Experimental:
+        channelList = "List of available channels in the main server:\n";
+        CHANNEL_MAP.forEach((channelId, channelName) => {
+            channelList += `#${channelName} (${channelId})\n`;
+        });
+
         const systemMessage = 
             timeString + "\n\n" +
             PERSONALITY_SYSTEM_MSG + "\n\n" +
-            (channel.type === ChannelType.DM ? "" : (await generateChannelListMessage(channel.guild.id, client)) + "\n\n") +
+            channelList + "\n\n" +
             (await generateChannelMembersMessage(channel)) + "\n\n" +
             this.generateActionListPrompt(this.actions);
 
-        console.log(`[ActionBot] Current system message: ${systemMessage}`)
-
-        const formattedMessage = formatMessage(msg, client);
+        // console.log(`[ActionBot] Current system message: ${systemMessage}`)
 
         const { messageHistory, conversationId: newConversationId } = 
             await getMessageHistoryOrCreateMessage(GLOBAL_CONVERSATION_ID, formattedMessage);
@@ -116,27 +155,37 @@ export class ActionBot {
             4096
         );
 
-        console.log(`[ActionBot] Generated response: ${modelResponse}`);
-        await addMessageToConversation(newConversationId, modelResponse, "assistant");
+        console.log(`[ActionBot] RESPONSE: ${modelResponse}`);
 
-        const systemResponse = await this.executeAction(modelResponse);
-        const systemResponseFormatted = this.formatInternalMessage(systemResponse);
-
-        // Append the system response to the conversation history.
-        if (systemResponse) {
+        if (!PassAction.prototype.matches(modelResponse)) {
+            await addMessageToConversation(newConversationId, modelResponse, "assistant");
+            let systemResponse = await this.executeAction(modelResponse);
+            if (!systemResponse) {
+                systemResponse = "Executed. [PASS] or take another action."
+            }
+            
+            const systemResponseFormatted = this.formatInternalMessage(systemResponse);
             await addMessageToConversation(newConversationId, systemResponseFormatted, "user");
-            console.log(`[ActionBot] Got system response: ${systemResponseFormatted}`);
+            this.handleMessage(systemResponseFormatted, channel);
         }
     }
 
     async executeAction(message: string): Promise<string> {
+        const action = await this.getAction(message);
+        if (action) {
+            return action.execute(message);
+        }
+        return "Invalid action or incorrect syntax.";
+    }
+
+    async getAction(message: string): Promise<BotAction> {
         for (const action of this.actions) {
             if (action.matches(message)) {
-                return action.execute(message);
+                return action;
             }
         }
 
-        return 'No action found for message.';
+        return null;
     }
 
     formatInternalMessage(message: string): string {
@@ -205,7 +254,8 @@ export class ActionBot {
     */
     generateActionListPrompt(actions: BotAction[]): string {
         const ACTION_LIST_PROMPT = "Your response MUST begin with an \"[ACTION]\" tag and MUST match one of the following action signatures:";
-        return `${ACTION_LIST_PROMPT}\n${actions.map((action) => `"${action.signature}" - ${action.description}`).join('\n')}`;
+        const ACTION_LIST_SUFFIX = "You should [PASS] if the current message isn't relevant to you."
+        return `${ACTION_LIST_PROMPT}\n${actions.map((action) => `"${action.signature}" - ${action.description}`).join('\n')}\n${ACTION_LIST_SUFFIX}`;
     }
 }
 
@@ -259,7 +309,7 @@ async function generateChannelMembersMessage(channel: TextBasedChannel): Promise
         memberList.push(`<@${id}> (${displayName})`);
     });
 
-    return `Directory of members in the current server:\n${memberList.join('\n')}`;
+    return `Directory of members in the current server (or DM):\n${memberList.join('\n')}`;
 }
 
 /**

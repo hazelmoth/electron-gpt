@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ChannelMessageAction = exports.DirectMessageAction = exports.BotAction = void 0;
+exports.WikipediaSummaryAction = exports.ChannelMessageAction = exports.DirectMessageAction = exports.BotAction = void 0;
+const wikipedia_1 = __importDefault(require("./wikipedia"));
 /**
  * A class representing an action that the bot can take.
  * Has a signature (e.g. "[DM <@1234567890>] <message>") and a description.
@@ -22,7 +26,7 @@ class DirectMessageAction extends BotAction {
         super("[DM @123456789] message", "Sends a direct message to the user with the specified ID.");
         this.client = client;
     }
-    execute(message) {
+    async execute(message) {
         // Extract the user ID and message from the input
         const matches = message.match(/^\[DM @(\d+)] ([\s\S]*)$/s);
         if (!matches) {
@@ -34,7 +38,7 @@ class DirectMessageAction extends BotAction {
         const user = this.client.users.cache.get(userId);
         if (user) {
             user.send(userMessage);
-            return `Sending message to <@${userId}>: ${userMessage}`;
+            return null;
         }
         else {
             return `User with ID ${userId} not found.`;
@@ -53,10 +57,10 @@ exports.DirectMessageAction = DirectMessageAction;
  */
 class ChannelMessageAction extends BotAction {
     constructor(client) {
-        super("[MSG #channel] message", "Sends a message to the specified channel.");
+        super("[MSG #1234567890] message", "Sends a message to the channel with the specified ID.");
         this.client = client;
     }
-    execute(message) {
+    async execute(message) {
         // Extract the channel ID and message from the input
         const matches = message.match(/^\[MSG #(\d+)] ([\s\S]*)$/s);
         if (!matches) {
@@ -68,7 +72,7 @@ class ChannelMessageAction extends BotAction {
         const channel = this.client.channels.cache.get(channelId);
         if (channel && channel.isTextBased()) {
             channel.send(channelMessage);
-            return `Sending message to <#${channelId}>: ${channelMessage}`;
+            return null;
         }
         else {
             return `Channel with ID ${channelId} not found.`;
@@ -80,3 +84,33 @@ class ChannelMessageAction extends BotAction {
     }
 }
 exports.ChannelMessageAction = ChannelMessageAction;
+/**
+ * An action for querying a page extract from Wikipedia.
+ * Takes a page name as a parameter.
+* [WIKI page-name]
+*/
+class WikipediaSummaryAction extends BotAction {
+    constructor() {
+        super("[WIKI page name]", "Fetches a summary of the specified Wikipedia page.");
+    }
+    async execute(message) {
+        // Extract the search term from the input
+        const matches = message.match(/^\[WIKI ([\s\S]*)]$/s);
+        if (!matches) {
+            return "Invalid syntax. Please use the following format: [SEARCHWIKI page name]";
+        }
+        const articleName = matches[1];
+        try {
+            const response = await (0, wikipedia_1.default)(articleName);
+            return response;
+        }
+        catch (error) {
+            return 'Failed to fetch page content from Wikipedia';
+        }
+    }
+    matches(message) {
+        const matches = message.startsWith("[WIKI ");
+        return !!matches;
+    }
+}
+exports.WikipediaSummaryAction = WikipediaSummaryAction;

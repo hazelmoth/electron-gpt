@@ -3,7 +3,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 require('dotenv').config({ path: __dirname + '/.env' });
 
-const prompt = "you are a discord bot called Melu. right now you are condensing your memory of events. for the following message history, return a concise bullet-point first-person summary of 1000 words or less that summarizes the most important things to remember about the message history. if there's already a message summarizing previous longterm memory, FULLY INCLUDE THAT CONTEXT in your summary; don't just continue where it leaves off. make sure to keep important info like the identities of people you've met. if there is nothing important, just say whatever details there are. include nothing other than the bullet points. DO NOT offer any additional commentary, analysis, or explanation. the response should begin with: \"- i am a discord bot called Melu.\"";
+const prompt = "you are a discord bot called Melu. right now you are condensing your memory of events. for the following message history, return a concise bullet-point first-person summary of 1000 words or less that summarizes the most important things to remember about the message history. if there's already a message summarizing previous longterm memory, FULLY INCLUDE THAT CONTEXT in your summary. make sure to keep important info like the identities of people you've met. if there is nothing important, just say whatever details there are. include nothing other than the bullet points. DO NOT offer any additional commentary, analysis, or explanation. the response should begin with: \"- i am a discord bot called Melu.\"";
 
 module.exports = {
     data: new SlashCommandBuilder()

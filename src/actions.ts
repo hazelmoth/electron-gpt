@@ -1,5 +1,6 @@
 import { CustomClient } from './custom-client';
 import { TextChannel } from 'discord.js';
+import fetchPageContent from './wikipedia';
 
 /**
  * A class representing an action that the bot can take.
@@ -17,9 +18,9 @@ export abstract class BotAction {
     /**
      * Executes the action.
      * @param {string} message - The message that triggered the action.
-     * @returns {string?} The system response to the action, if any.
+     * @returns {string} - The string to send back to the channel, or null if no response is needed.
      */
-    abstract execute(message: string): string;
+    abstract execute(message: string): Promise<string>;
 
     /**
      * Whether the given message matches the action's signature.
@@ -40,7 +41,7 @@ export class DirectMessageAction extends BotAction {
         this.client = client;
     }
 
-    execute(message: string): string {
+    async execute(message: string): Promise<string> {
         // Extract the user ID and message from the input
         const matches = message.match(/^\[DM @(\d+)] ([\s\S]*)$/s);
         if (!matches) {
@@ -54,7 +55,7 @@ export class DirectMessageAction extends BotAction {
         const user = this.client.users.cache.get(userId);
         if (user) {
             user.send(userMessage);
-            return `Sending message to <@${userId}>: ${userMessage}`;
+            return null;
         } else {
             return `User with ID ${userId} not found.`;
         }
@@ -79,7 +80,7 @@ export class ChannelMessageAction extends BotAction {
         this.client = client;
     }
 
-    execute(message: string): string {
+    async execute(message: string): Promise<string> {
         // Extract the channel ID and message from the input
         const matches = message.match(/^\[MSG #(\d+)] ([\s\S]*)$/s);
         if (!matches) {
@@ -93,7 +94,7 @@ export class ChannelMessageAction extends BotAction {
         const channel = this.client.channels.cache.get(channelId);
         if (channel && channel.isTextBased()) {
             channel.send(channelMessage);
-            return `Sending message to <#${channelId}>: ${channelMessage}`;
+            return null;
         } else {
             return `Channel with ID ${channelId} not found.`;
         }
@@ -101,6 +102,39 @@ export class ChannelMessageAction extends BotAction {
 
     matches(message: string): boolean {
         const matches = message.startsWith("[MSG #");
+        return !!matches;
+    }
+}
+
+/**
+ * An action for querying a page extract from Wikipedia.
+ * Takes a page name as a parameter.
+* [WIKI page-name]
+*/
+export class WikipediaSummaryAction extends BotAction {
+    constructor() {
+        super("[WIKI page name]", "Fetches a summary of the specified Wikipedia page.");
+    }
+
+    async execute(message: string): Promise<string> {
+        // Extract the search term from the input
+        const matches = message.match(/^\[WIKI ([\s\S]*)]$/s);
+        if (!matches) {
+            return "Invalid syntax. Please use the following format: [SEARCHWIKI page name]";
+        }
+
+        const articleName = matches[1];
+
+        try {
+            const response = await fetchPageContent(articleName);
+            return response;
+        } catch (error) {
+            return 'Failed to fetch page content from Wikipedia';
+        }
+    }
+
+    matches(message: string): boolean {
+        const matches = message.startsWith("[WIKI ");
         return !!matches;
     }
 }
