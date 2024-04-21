@@ -58,7 +58,7 @@ export async function getMessageHistoryOrCreateMessage(conversationId, prompt) {
  * Adds a message to the conversation with the given ID.
  * If the conversation does not exist, it is created with the given message as the first message.
  */
-async function addMessageToConversation(conversationId: string, message: string, role: string) {
+export async function addMessageToConversation(conversationId: string, message: string, role: string) {
     const [conversation, created] = await Conversation.findOrCreate({
         where: { id: conversationId },
         defaults: {

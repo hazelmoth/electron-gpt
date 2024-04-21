@@ -1,3 +1,7 @@
+import { Message } from "discord.js";
+import { ActionBot } from "./src/action-bot";
+import { ClaudeAI } from "./src/models/claudeai";
+
 // bot.ts
 const { Client, GatewayIntentBits, Partials, ChannelType, Events, MessageMentions } = require('discord.js');
 const client = new Client({
@@ -67,61 +71,15 @@ client.on(Events.InteractionCreate, async interaction => {
 	}
 });
 
-client.on('messageCreate', async msg => {
+client.on('messageCreate', async (msg: Message<boolean>) => {
   // Do not respond to messages sent by the bot itself
   if (msg.author.id === client.user.id) return;
 
-  const isMentioned = msg.mentions.has(client.user);
-
   try {
-    // If this is a guild message not mentioning us, we prompt an LLM asking if we should respond
-    // based on the last 10 messages in the channel.
-    let respondToNonMention = false;
-    if (msg.guild && !isMentioned) {
-      const channel = await msg.guild.channels.fetch(msg.channel.id);
-      let last10Messages = await channel.messages.fetch({ limit: 10 });
-      last10Messages = last10Messages.reverse();
-
-      // Map each message to "[username][time elapsed] message content", or if it's from the bot, "[username (YOU)][time elapsed] message content"
-      last10Messages = last10Messages.map(m => {
-        let timeElapsed = timeElapsedString(m.createdTimestamp);
-        if (m.author.id === client.user.id) {
-          return `[${m.author.displayName} (YOU)][${timeElapsed}] ${m.content}`;
-        }
-        else {
-          return `[${m.author.displayName}][${timeElapsed}] ${m.content}`;
-        }
-      });
-
-      last10Messages = last10Messages.map(m => replaceMentions(m, client));
-
-      const context = last10Messages.join('\n');
-      const contextCheckPrompt = `You are a discord user with the username "${client.user.displayName}". There's a new message in the public channel #${channel.name}. The last 10 messages (in chronological order) are:\n\n${context}\n\nDo you respond? (is it addressed to you? Relevant to you? Part of a conversation you're in? Someone trying to get your attention? A follow-up to something you said? A question following something you said? Something controversial about robots? Don't respond to messages directed at someone else.) ONLY return "Yes" or "No".`;
-      const response = await generateResponseGPT3(contextCheckPrompt);
-      if (response.toLowerCase() === 'yes') {
-        console.log(`Decided to respond to message "${msg.content}"`);
-        respondToNonMention = true;
-      }
-      else {
-        console.log(`Context check yielded response "${response}". Not responding to message.`);
-      }
-    }
-
-    let msgText = formatMessage(msg);
-
-    console.log(`RECEIVED:\n"${msgText}"`);
-
-    if (msg.channel.type === ChannelType.DM || (msg.guild && isMentioned) || respondToNonMention) {
-        await msg.channel.sendTyping();
-        const response = await generateAssistantResponse(msgText, msg.author.id);
-        await sendMultiLineMessage(msg.channel, response);
-    } else {
-      // We're not responding to this message, but we still update the conversation history.
-        const conversationId = "GLOBAL";
-        await addMessageToConversation(conversationId, msgText, 'user');
-        console.log(`Added message to conversation history: ${msgText}`);
-    }
-  } catch (error) {
+    const bot: ActionBot = new ActionBot(client, new ClaudeAI(), new ClaudeAI());
+    bot.onMessageReceived(msg);
+  } 
+  catch (error) {
     console.error("Error in client.on('messageCreate'):", error);
   }
 });

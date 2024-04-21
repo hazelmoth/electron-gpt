@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMessageHistoryOrCreateMessage = exports.updateConversation = void 0;
+exports.addMessageToConversation = exports.getMessageHistoryOrCreateMessage = exports.updateConversation = void 0;
 const { DataTypes } = require("sequelize");
 const { v4: uuidv4 } = require("uuid");
 const sequelize = require("../database");
@@ -74,6 +74,7 @@ async function addMessageToConversation(conversationId, message, role) {
     messageHistory = makeAlternating(messageHistory);
     return { messageHistory, conversationId };
 }
+exports.addMessageToConversation = addMessageToConversation;
 async function getConversations() {
     const conversations = await Conversation.findAll();
     return conversations.map((conversation) => {

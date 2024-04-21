@@ -19,12 +19,12 @@ exports.BotAction = BotAction;
  */
 class DirectMessageAction extends BotAction {
     constructor(client) {
-        super("[DM @user-id] message", "Sends a direct message to the specified user.");
+        super("[DM @123456789] message", "Sends a direct message to the user with the specified ID.");
         this.client = client;
     }
     execute(message) {
         // Extract the user ID and message from the input
-        const matches = message.match(/^\[DM <@(\d+)>] (.+)$/);
+        const matches = message.match(/^\[DM @(\d+)] ([\s\S]*)$/s);
         if (!matches) {
             return "Invalid syntax. Please use the following format: [DM <@1234567890>] Hello!";
         }
@@ -41,7 +41,7 @@ class DirectMessageAction extends BotAction {
         }
     }
     matches(message) {
-        const matches = message.match(/^\[DM <@(\d+)>] (.+)$/);
+        const matches = message.startsWith("[DM @");
         return !!matches;
     }
 }
@@ -58,7 +58,7 @@ class ChannelMessageAction extends BotAction {
     }
     execute(message) {
         // Extract the channel ID and message from the input
-        const matches = message.match(/^\[MSG <#(\d+)>] (.+)$/);
+        const matches = message.match(/^\[MSG #(\d+)] ([\s\S]*)$/s);
         if (!matches) {
             return "Invalid syntax. Please use the following format: [MSG #1234567890] Hello!";
         }
@@ -75,7 +75,7 @@ class ChannelMessageAction extends BotAction {
         }
     }
     matches(message) {
-        const matches = message.match(/^\[MSG <#(\d+)>] (.+)$/);
+        const matches = message.startsWith("[MSG #");
         return !!matches;
     }
 }
