@@ -107,7 +107,11 @@ export class ActionBot {
         const formattedMessage = formatMessage(msg, client);
         const channel = msg.channel as TextBasedChannel;
 
-        await this.handleMessage(formattedMessage, channel);
+        try {
+            await this.handleMessage(formattedMessage, channel);
+        } catch (error) {
+            console.error('Error while handling message:', error);
+        }
     }
 
     async handleMessage(formattedMessage: string, channel: TextBasedChannel): Promise<void> {
@@ -173,17 +177,21 @@ export class ActionBot {
     }
 
     async executeAction(message: string): Promise<string> {
-        const action = await this.getAction(message);
-        if (action) {
-            return action.execute(message);
+        if (message) {
+            const action = await this.getAction(message);
+            if (action) {
+                return action.execute(message);
+            }
         }
         return "Invalid action or incorrect syntax.";
     }
 
     async getAction(message: string): Promise<BotAction> {
-        for (const action of this.actions) {
-            if (action.matches(message)) {
-                return action;
+        if (message) {
+            for (const action of this.actions) {
+                if (action.matches(message)) {
+                    return action;
+                }
             }
         }
 
