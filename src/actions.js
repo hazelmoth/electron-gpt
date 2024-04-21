@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WikipediaSummaryAction = exports.ChannelMessageAction = exports.DirectMessageAction = exports.BotAction = void 0;
+exports.HttpGetAction = exports.WikipediaSummaryAction = exports.ChannelMessageAction = exports.DirectMessageAction = exports.BotAction = void 0;
 const wikipedia_1 = __importDefault(require("./wikipedia"));
 /**
  * A class representing an action that the bot can take.
@@ -114,3 +114,31 @@ class WikipediaSummaryAction extends BotAction {
     }
 }
 exports.WikipediaSummaryAction = WikipediaSummaryAction;
+/**
+ * An action to make arbitrary HTTP requests.
+ */
+class HttpGetAction extends BotAction {
+    constructor() {
+        super("[HTTP-GET url]", "Makes a GET request to the specified URL.");
+    }
+    async execute(message) {
+        // Extract the URL from the input
+        const matches = message.match(/^\[HTTP-GET ([\s\S]*)]$/s);
+        if (!matches) {
+            return "Invalid syntax. Please use the following format: [HTTP-GET url]";
+        }
+        const url = matches[1];
+        try {
+            const response = await fetch(url);
+            return response.text();
+        }
+        catch (error) {
+            return 'Failed to make HTTP request';
+        }
+    }
+    matches(message) {
+        const matches = message.startsWith("[HTTP-GET ");
+        return !!matches;
+    }
+}
+exports.HttpGetAction = HttpGetAction;

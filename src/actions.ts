@@ -138,3 +138,34 @@ export class WikipediaSummaryAction extends BotAction {
         return !!matches;
     }
 }
+
+/**
+ * An action to make arbitrary HTTP requests.
+ */
+export class HttpGetAction extends BotAction {
+    constructor() {
+        super("[HTTP-GET url]", "Makes a GET request to the specified URL.");
+    }
+
+    async execute(message: string): Promise<string> {
+        // Extract the URL from the input
+        const matches = message.match(/^\[HTTP-GET ([\s\S]*)]$/s);
+        if (!matches) {
+            return "Invalid syntax. Please use the following format: [HTTP-GET url]";
+        }
+
+        const url = matches[1];
+
+        try {
+            const response = await fetch(url);
+            return response.text()
+        } catch (error) {
+            return 'Failed to make HTTP request';
+        }
+    }
+
+    matches(message: string): boolean {
+        const matches = message.startsWith("[HTTP-GET ");
+        return !!matches;
+    }
+}
