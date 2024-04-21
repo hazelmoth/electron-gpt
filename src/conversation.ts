@@ -15,7 +15,7 @@ const Conversation = sequelize.define("Conversation", {
     }
 });
 
-async function updateConversation(id, messageHistory) {
+export async function updateConversation(id, messageHistory) {
     try {
         await Conversation.update(
             { messages: JSON.stringify(messageHistory) },
@@ -30,7 +30,7 @@ async function updateConversation(id, messageHistory) {
  *  If the conversation does not exist, it is created with the given prompt as the first message.
 /  Returns the message history and the conversation ID.
 */
-async function getMessageHistoryOrCreateMessage(conversationId, prompt) {
+export async function getMessageHistoryOrCreateMessage(conversationId, prompt) {
     const [conversation, created] = await Conversation.findOrCreate({
         where: { id: conversationId },
         defaults: {

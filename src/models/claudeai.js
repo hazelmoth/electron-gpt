@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generate = exports.generateTextGeneric = exports.generateText = void 0;
+exports.ClaudeAI = exports.generate = exports.generateTextGeneric = exports.generateText = void 0;
 const sdk_1 = __importDefault(require("@anthropic-ai/sdk"));
 const { getMessageHistoryOrCreateMessage, updateConversation } = require("../conversation");
 const dotenv = require('dotenv');
@@ -32,7 +32,6 @@ const model = "claude-3-opus-20240229";
 // Get the message history or create a new conversation
 async function generateText(prompt, conversationId) {
     conversationId = "GLOBAL"; // experimental
-    // prefix
     try {
         const { messageHistory, conversationId: newConversationId } = await getMessageHistoryOrCreateMessage(conversationId, prompt);
         // apply formatting
@@ -79,17 +78,18 @@ async function generateTextGeneric(prompt, model) {
 exports.generateTextGeneric = generateTextGeneric;
 /**
  * Generate a response to a given prompt using the specified system message.
+ * Takes an entire message history.
  */
-async function generate(prompt, systemMessage, temperature = 0.15, maxTokens = 4096) {
+async function generate(messages, systemMessage, temperature = 0, maxTokens = 4096) {
     try {
         const completion = await anthropic.messages.create({
             model: model,
             max_tokens: maxTokens,
             system: systemMessage,
-            messages: [{ role: "user", content: prompt }],
+            messages: messages,
             temperature: temperature
         });
-        return completion.content[0].text.trim();
+        return completion.content[0].text;
     }
     catch (error) {
         console.error('Error while generating text:', error);
@@ -147,3 +147,9 @@ function replaceTimestamps(messageHistory) {
     }
     return newMessageHistory;
 }
+class ClaudeAI {
+    async generate(messages, systemMessage, temperature, maxTokens) {
+        return generate(messages, systemMessage, temperature, maxTokens);
+    }
+}
+exports.ClaudeAI = ClaudeAI;

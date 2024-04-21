@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 const { getMessageHistoryOrCreateMessage, updateConversation } = require("../conversation");
+import { Model } from './model';
 const dotenv = require('dotenv');
 dotenv.config({ path: __dirname + '/../../.env' });
 
@@ -33,8 +34,6 @@ const model = "claude-3-opus-20240229";
 export async function generateText(prompt, conversationId) {
     
     conversationId = "GLOBAL" // experimental
-
-    // prefix
 
     try {
         const { messageHistory, conversationId: newConversationId } = await getMessageHistoryOrCreateMessage(conversationId, prompt);
@@ -88,17 +87,18 @@ export async function generateTextGeneric(prompt, model): Promise<string> {
 
 /**
  * Generate a response to a given prompt using the specified system message.
+ * Takes an entire message history.
  */
-export async function generate(prompt: string, systemMessage: string, temperature: number = 0.15, maxTokens: number = 4096): Promise<string> {
+export async function generate(messages: any[], systemMessage: string, temperature: number = 0, maxTokens: number = 4096): Promise<string> {
     try {
         const completion = await anthropic.messages.create({
             model: model,
             max_tokens: maxTokens,
             system: systemMessage,
-            messages: [{ role: "user", content: prompt }],
+            messages: messages,
             temperature: temperature
         });
-        return completion.content[0].text.trim();
+        return completion.content[0].text;
     } catch (error) {
         console.error('Error while generating text:', error);
     }
@@ -157,4 +157,10 @@ function replaceTimestamps(messageHistory: any[]): any[] {
         newMessageHistory[i].content = newContent;
     }
     return newMessageHistory;
+}
+
+export class ClaudeAI implements Model {
+    async generate(messages: any[], systemMessage: string, temperature: number, maxTokens: number): Promise<string> {
+        return generate(messages, systemMessage, temperature, maxTokens);
+    }
 }

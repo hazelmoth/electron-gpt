@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getMessageHistoryOrCreateMessage = exports.updateConversation = void 0;
 const { DataTypes } = require("sequelize");
 const { v4: uuidv4 } = require("uuid");
 const sequelize = require("../database");
@@ -23,6 +24,7 @@ async function updateConversation(id, messageHistory) {
         console.error("Error updating conversation :", error);
     }
 }
+exports.updateConversation = updateConversation;
 /* Adds the given prompt to the message history of the conversation with the given ID.
  *  If the conversation does not exist, it is created with the given prompt as the first message.
 /  Returns the message history and the conversation ID.
@@ -47,6 +49,7 @@ async function getMessageHistoryOrCreateMessage(conversationId, prompt) {
     messageHistory = makeAlternating(messageHistory);
     return { messageHistory, conversationId };
 }
+exports.getMessageHistoryOrCreateMessage = getMessageHistoryOrCreateMessage;
 /**
  * Adds a message to the conversation with the given ID.
  * If the conversation does not exist, it is created with the given message as the first message.
