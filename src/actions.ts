@@ -75,7 +75,7 @@ export class ChannelMessageAction extends BotAction {
     client: CustomClient;
 
     constructor(client: CustomClient) {
-        super("[MSG #channel] message", "Sends a message to the specified channel.");
+        super("[MSG #1234567890] message", "Sends a message to the channel with the specified ID.");
         this.client = client;
     }
 
