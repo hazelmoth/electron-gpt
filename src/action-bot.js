@@ -90,11 +90,21 @@ class ActionBot {
             console.log('[ActionBot] Ignoring non-text-based channel');
             return;
         }
-        const formattedMessage = formatMessage(msg, client);
+        let formattedMessage = formatMessage(msg, client);
+        if (msg.attachments.size > 0) {
+            const addendum = this.formatInternalMessage("(This message contains an attachment, which you cannot view.)");
+            formattedMessage += "\n" + addendum;
+        }
         const channel = msg.channel;
-        await this.handleMessage(formattedMessage, channel);
+        try {
+            await this.handleMessage(formattedMessage, channel);
+        }
+        catch (error) {
+            console.error('Error while handling message:', error);
+        }
     }
     async handleMessage(formattedMessage, channel) {
+        console.log(`[ActionBot] RECEIVING: ${formattedMessage}`);
         const client = this.client;
         // Format e.g. "[Current time: Saturday 3/14/2022, 12:00:00 PM pacific]"
         const timeOptions = {
@@ -118,19 +128,18 @@ class ActionBot {
         const systemMessage = timeString + "\n\n" +
             PERSONALITY_SYSTEM_MSG + "\n\n" +
             channelList + "\n\n" +
-            (await generateChannelMembersMessage(channel)) + "\n\n" +
+            (await generateUserDirectoryMessage(client)) + "\n\n" +
             this.generateActionListPrompt(this.actions);
-        // console.log(`[ActionBot] Current system message: ${systemMessage}`)
+        //console.log(`[ActionBot] Current system message: ${systemMessage}`)
         const { messageHistory, conversationId: newConversationId } = await (0, conversation_1.getMessageHistoryOrCreateMessage)(GLOBAL_CONVERSATION_ID, formattedMessage);
         const messageHistoryFormatted = replaceTimestamps(messageHistory);
-        console.log(`[ActionBot] RECEIVING: ${formattedMessage}`);
-        const modelResponse = await this.model.generate([...messageHistoryFormatted], systemMessage, 0.15, 4096);
+        const modelResponse = await this.model.generate([...messageHistoryFormatted], systemMessage, 0.11, 1024);
         console.log(`[ActionBot] RESPONSE: ${modelResponse}`);
         if (!PassAction.prototype.matches(modelResponse)) {
             await (0, conversation_1.addMessageToConversation)(newConversationId, modelResponse, "assistant");
             let systemResponse = await this.executeAction(modelResponse);
             if (!systemResponse) {
-                systemResponse = "Executed. [PASS] or take another action.";
+                systemResponse = "Completed action. [PASS] if you're done, or take another action.";
             }
             const systemResponseFormatted = this.formatInternalMessage(systemResponse);
             await (0, conversation_1.addMessageToConversation)(newConversationId, systemResponseFormatted, "user");
@@ -138,16 +147,20 @@ class ActionBot {
         }
     }
     async executeAction(message) {
-        const action = await this.getAction(message);
-        if (action) {
-            return action.execute(message);
+        if (message) {
+            const action = await this.getAction(message);
+            if (action) {
+                return action.execute(message);
+            }
         }
         return "Invalid action or incorrect syntax.";
     }
     async getAction(message) {
-        for (const action of this.actions) {
-            if (action.matches(message)) {
-                return action;
+        if (message) {
+            for (const action of this.actions) {
+                if (action.matches(message)) {
+                    return action;
+                }
             }
         }
         return null;
@@ -214,7 +227,7 @@ class ActionBot {
     */
     generateActionListPrompt(actions) {
         const ACTION_LIST_PROMPT = "Your response MUST begin with an \"[ACTION]\" tag and MUST match one of the following action signatures:";
-        const ACTION_LIST_SUFFIX = "You should [PASS] if the current message isn't relevant to you.";
+        const ACTION_LIST_SUFFIX = "You should [PASS] if they're not talking to you, the message isn't relevant to you, or you've finished what you were doing.";
         return `${ACTION_LIST_PROMPT}\n${actions.map((action) => `"${action.signature}" - ${action.description}`).join('\n')}\n${ACTION_LIST_SUFFIX}`;
     }
 }
@@ -267,6 +280,50 @@ async function generateChannelMembersMessage(channel) {
         memberList.push(`<@${id}> (${displayName})`);
     });
     return `Directory of members in the current server (or DM):\n${memberList.join('\n')}`;
+}
+/**
+ * Given a channel (DM or guild), generates a map of user IDs to their usernames and display names.
+ */
+async function getChannelMembers(channel) {
+    let memberMap = new Map();
+    if (channel.type === discord_js_1.ChannelType.DM) {
+        memberMap.set(channel.recipient.id, [channel.recipient.username, channel.recipient.displayName]);
+    }
+    else {
+        const guildChannel = channel;
+        const members = await guildChannel.guild.members.fetch();
+        members.forEach((member) => {
+            memberMap.set(member.id, [member.user.username, member.displayName]);
+        });
+    }
+    return memberMap;
+}
+/**
+ * Generates the member directory message for users in every guild the bot is in.
+ * Formatted as "<@user_id> (username="username", displaynames="displayname","displayname2"...);
+ */
+async function generateUserDirectoryMessage(client) {
+    // id -> [username, list of display names]
+    let userMap = new Map();
+    for (const channel of client.channels.cache.values()) {
+        const channelMembers = await getChannelMembers(channel);
+        for (const [id, [username, displayName]] of channelMembers) {
+            if (!userMap.has(id)) {
+                userMap.set(id, [username, [displayName]]);
+            }
+            else {
+                const displayNames = userMap.get(id)[1];
+                if (!displayNames.includes(displayName)) {
+                    displayNames.push(displayName);
+                }
+            }
+        }
+    }
+    let memberList = [];
+    userMap.forEach(([username, displayNames], id) => {
+        memberList.push(`<@${id}> (username="${username}", displaynames="${displayNames.join('","')}")`);
+    });
+    return `Directory of users in all servers you know of:\n${memberList.join('\n')}`;
 }
 /**
  * Generate a message listing the channels in the guild and their IDs.

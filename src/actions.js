@@ -119,25 +119,30 @@ exports.WikipediaSummaryAction = WikipediaSummaryAction;
  */
 class HttpGetAction extends BotAction {
     constructor() {
-        super("[HTTP-GET url]", "Makes a GET request to the specified URL.");
+        super("[HTTPGET-TEXT url]", "Makes a GET request to retrieve text from the specified URL. Text only. Truncates to 8000 chars.");
     }
     async execute(message) {
         // Extract the URL from the input
-        const matches = message.match(/^\[HTTP-GET ([\s\S]*)]$/s);
+        const matches = message.match(/^\[HTTPGET-TEXT ([\s\S]*)]$/s);
         if (!matches) {
-            return "Invalid syntax. Please use the following format: [HTTP-GET url]";
+            return "Invalid syntax. Please use the following format: [HTTPGET-TEXT url]";
         }
         const url = matches[1];
         try {
             const response = await fetch(url);
-            return response.text();
+            if (!response.ok) {
+                return `Failed to fetch URL: ${response.statusText}`;
+            }
+            const text = await response.text();
+            const maxLength = 8000;
+            return text.substring(0, maxLength);
         }
         catch (error) {
             return 'Failed to make HTTP request';
         }
     }
     matches(message) {
-        const matches = message.startsWith("[HTTP-GET ");
+        const matches = message.startsWith("[HTTPGET-TEXT ");
         return !!matches;
     }
 }
