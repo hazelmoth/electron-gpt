@@ -164,7 +164,7 @@ export class ActionBot {
             [...messageHistoryFormatted],
             systemMessage,
             0.11,
-            1024
+            512
         );
 
         console.log(`[ActionBot] RESPONSE: ${modelResponse}`);
@@ -184,9 +184,14 @@ export class ActionBot {
 
     async executeAction(message: string): Promise<string> {
         if (message) {
-            const action = await this.getAction(message);
-            if (action) {
-                return action.execute(message);
+            try {
+                const action = await this.getAction(message);
+                if (action) {
+                    return await action.execute(message);
+                }
+            } catch (error) {
+                console.error('Error while executing action:', error);
+                return "An error occurred while executing the action.";
             }
         }
         return "Invalid action or incorrect syntax.";

@@ -133,7 +133,7 @@ class ActionBot {
         //console.log(`[ActionBot] Current system message: ${systemMessage}`)
         const { messageHistory, conversationId: newConversationId } = await (0, conversation_1.getMessageHistoryOrCreateMessage)(GLOBAL_CONVERSATION_ID, formattedMessage);
         const messageHistoryFormatted = replaceTimestamps(messageHistory);
-        const modelResponse = await this.model.generate([...messageHistoryFormatted], systemMessage, 0.11, 1024);
+        const modelResponse = await this.model.generate([...messageHistoryFormatted], systemMessage, 0.11, 512);
         console.log(`[ActionBot] RESPONSE: ${modelResponse}`);
         if (!PassAction.prototype.matches(modelResponse)) {
             await (0, conversation_1.addMessageToConversation)(newConversationId, modelResponse, "assistant");
@@ -148,9 +148,15 @@ class ActionBot {
     }
     async executeAction(message) {
         if (message) {
-            const action = await this.getAction(message);
-            if (action) {
-                return action.execute(message);
+            try {
+                const action = await this.getAction(message);
+                if (action) {
+                    return await action.execute(message);
+                }
+            }
+            catch (error) {
+                console.error('Error while executing action:', error);
+                return "An error occurred while executing the action.";
             }
         }
         return "Invalid action or incorrect syntax.";

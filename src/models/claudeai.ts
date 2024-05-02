@@ -74,7 +74,7 @@ export async function generateTextGeneric(prompt, model): Promise<string> {
     try {
         const completion = await anthropic.messages.create({
             model: model,
-            max_tokens: 4096,
+            max_tokens: 2048,
             messages: [{ role: "user", content: prompt }],
             temperature: 0
         });

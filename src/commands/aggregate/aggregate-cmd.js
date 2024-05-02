@@ -3,7 +3,24 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 require('dotenv').config({ path: __dirname + '/.env' });
 
-const prompt = "you are a discord bot called Melu. right now you are condensing your memory of events. for the following message history, return a concise bullet-point first-person summary of 1000 words or less that summarizes the most important things to remember about the message history. if there's already a message summarizing previous longterm memory, FULLY INCLUDE THAT CONTEXT in your summary. make sure to keep important info like the identities of people you've met. if there is nothing important, just say whatever details there are. include nothing other than the bullet points. DO NOT offer any additional commentary, analysis, or explanation. the response should begin with: \"- i am a discord bot called Melu.\"";
+const prompt = `you are a discord bot called Melu. right now you are condensing your longterm memory of events.
+
+you must output the following 2 sections in your response:
+
+- first, one titled "FACTS I REMEMBER" that contains a bullet-point list of the most important things for you to remember.
+    - this must always start with: "- i am a discord bot called Melu."
+    - only include things that are true in general, not specific to the current conversation.
+    - use absolute dates instead of relative ones (e.g. "2022" instead of "last year").
+    - these don't need to be chronological; feel free to reorder them or update them however makes sense.
+- second, one titled "EVENTS I REMEMBER" that contains a bullet-point list of the most important events that have happened to you.
+
+if there is already past memory in the input, FULLY INCLUDE THAT CONTEXT in your summary. DO NOT FORGET IMPORTANT DETAILS. 
+make sure to RETAIN important details like the identities of people you've met. 
+
+each of the two sections MUST BE UNDER 1000 words (so collectively 2000 words max). 
+if a section is too long, start cutting out the least important details, or combining related details together.
+
+include nothing other than the headers and bullet points. DO NOT offer any additional commentary, analysis, or explanation.`;
 
 module.exports = {
     data: new SlashCommandBuilder()

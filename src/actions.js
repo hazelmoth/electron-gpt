@@ -32,13 +32,22 @@ class DirectMessageAction extends BotAction {
         if (!matches) {
             return "Invalid syntax. Please use the following format: [DM <@1234567890>] Hello!";
         }
+        // Max length of a message is 2000 characters
+        if (matches[2].length > 2000) {
+            return "Message is too long. Max length is 2000 characters.";
+        }
         const userId = matches[1];
         const userMessage = matches[2];
         // Send the message to the user
         const user = this.client.users.cache.get(userId);
         if (user) {
-            user.send(userMessage);
-            return null;
+            try {
+                user.send(userMessage);
+                return null;
+            }
+            catch (error) {
+                return `Error sending message to user with ID ${userId}.`;
+            }
         }
         else {
             return `User with ID ${userId} not found.`;
@@ -65,6 +74,9 @@ class ChannelMessageAction extends BotAction {
         const matches = message.match(/^\[MSG #(\d+)] ([\s\S]*)$/s);
         if (!matches) {
             return "Invalid syntax. Please use the following format: [MSG #1234567890] Hello!";
+        }
+        if (matches[2].length > 2000) {
+            return "Message is too long. Max length is 2000 characters.";
         }
         const channelId = matches[1];
         const channelMessage = matches[2];
