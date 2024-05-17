@@ -1,6 +1,7 @@
 import { Message } from "discord.js";
 import { ActionBot } from "./src/action-bot";
 import { ClaudeAI } from "./src/models/claudeai";
+import { OpenAiGpt } from "./src/models/openai";
 
 // bot.ts
 const { Client, GatewayIntentBits, Partials, ChannelType, Events, MessageMentions } = require('discord.js');
@@ -76,7 +77,7 @@ client.on('messageCreate', async (msg: Message<boolean>) => {
   if (msg.author.id === client.user.id) return;
 
   try {
-    const bot: ActionBot = new ActionBot(client, new ClaudeAI(), new ClaudeAI());
+    const bot: ActionBot = new ActionBot(client, new OpenAiGpt(), new OpenAiGpt());
     bot.onMessageReceived(msg);
   } 
   catch (error) {

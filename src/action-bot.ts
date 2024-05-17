@@ -6,24 +6,6 @@ import { CustomClient } from './custom-client';
 import { Model } from './models/model';
 import { getMessageHistoryOrCreateMessage, addMessageToConversation } from './conversation';
 
-// Directory of channels in the server:
-// #Text Channels (1101197966544486440)
-// #Voice Channels (1101197966544486441)
-// #generations (1101197966544486442)
-// #General (1101197966544486443)
-// #alt-experiments (1101310323371294781)
-// #notebook (1138958313011302530)
-// #commons (1172266862000738435)
-// #hzl (1202840497018634250)
-
-// Directory of members in the current server:
-// <@162292327883341824> (McguyverZero)
-// <@292736819940950016> (Browsers)
-// <@587081829194924043> (myra)
-// <@936929561302675456> (midjourney)
-// <@1172191645870084146> (melu)
-// <@1173685611660591186> (tatters)
-
 const CHANNEL_MAP = new Map<string, string>([
     ["commons", "1172266862000738435"],
     ["generations", "1101197966544486442"],
@@ -74,7 +56,7 @@ export class PassAction extends BotAction {
  * @param client The Discord client.
  * @param model The model to use for generating responses.
  * @param contextCheckModel The model to use for determining whether to respond to a message based on context.
- * @param actions The actions to perform.
+ * @param actions The actions available to the bot.
  */
 export class ActionBot {
     readonly client: CustomClient;
@@ -107,7 +89,17 @@ export class ActionBot {
         let formattedMessage = formatMessage(msg, client);
 
         if (msg.attachments.size > 0) {
-            const addendum = this.formatInternalMessage("(This message contains an attachment, which you cannot view.)");
+            let addendum = "";
+            if (msg.attachments.size === 1) {
+                addendum = this.formatInternalMessage("(This message contains an attachment, which you cannot view.)");
+            } else {
+                addendum = this.formatInternalMessage("(This message contains attachments, which you cannot view.)");
+            }
+            
+            msg.attachments.forEach((attachment) => {
+                addendum += ` ${attachment.name}`;
+            });
+
             formattedMessage += "\n" + addendum;
         }
 
@@ -213,47 +205,6 @@ export class ActionBot {
         return `[SYSTEM] ${message}`;
     }
 
-    async shouldRespondToMessage(msg: Message, client: CustomClient): Promise<boolean> {
-        if (msg.author.id === client.user.id) {
-            return false;
-        }
-        if (!msg.channel.isTextBased()) {
-            return false;
-        }
-        if (msg.mentions.has(client.user)) {
-            return true;
-        }
-        try {
-            // If this is a guild message not mentioning us, we prompt an LLM asking if we should respond
-            // based on the last 10 messages in the channel.
-            let respondToNonMention = false;
-            const isMentioned = msg.mentions.has(client.user);
-            if (msg.guild && !isMentioned) {
-                const channel = await msg.guild.channels.fetch(msg.channel.id);
-                
-                let context: string = (await (channel as TextBasedChannel).messages
-                    .fetch({ limit: 10 }))
-                    .reverse()
-                    .map((msg) => formatMessageSimple(msg, client))
-                    .join('\n');
-
-                const contextCheckPrompt = `You are a discord user with the username "${client.user.displayName}". There's a new message in the public channel #${channel.name}. The last 10 messages (in chronological order) are:\n\n${context}\n\nDo you respond? (is it addressed to you? Relevant to you? Part of a conversation you're in? Someone trying to get your attention? A follow-up to something you said? A question following something you said? Something controversial about robots? Don't respond to messages directed at someone else.) ONLY return "Yes" or "No".`;
-                const response = "no"//await this.contextCheckModel.generate(contextCheckPrompt);
-                if (response.toLowerCase() === 'yes') {
-                    console.log(`Decided to respond to message "${msg.content}"`);
-                    respondToNonMention = true;
-                }
-                else {
-                    console.log(`Context check yielded response "${response}". Not responding to message.`);
-                }
-            }
-            return msg.channel.isDMBased() || (msg.guild && isMentioned) || respondToNonMention;
-        } catch (error) {
-            console.error('Error while checking context:', error);
-        }
-        return false;
-    }
-
     /**
      * Returns the ID of a channel from its name across all guilds the bot is in.
      * Assumes that the bot is only in one guild with a channel of the given name.
@@ -280,17 +231,6 @@ export class ActionBot {
     }
 }
 
-/**
- * Return the message content formatted as:
- * [username][time elapsed] message content
- * where all mentions are replaced with <@nickname> or <@nickname (YOU)>
- */
-function formatMessageSimple(msg: Message, client: CustomClient) {
-    let timeElapsed = timeElapsedString(msg.createdTimestamp);
-    let result = `[${msg.author.displayName}][${timeElapsed}] ${msg.content}`;
-    return replaceMentions(result, client);
-}
-
 /** 
  * Given a message object, returns the message content formatted as
  * "(#channel, $$$timestamp$$$) [username] content".
@@ -310,38 +250,14 @@ function formatMessage(msg: Message, client: CustomClient, includeChannel: boole
   }
 
 /**
- * Given a channel (DM or guild), generates a system message describing each member's display name and user ID.
- */
-async function generateChannelMembersMessage(channel: TextBasedChannel): Promise<string> {
-    let memberMap: Map<string, string> = new Map<string, string>();
-    if (channel.type === ChannelType.DM) {
-        memberMap.set(channel.recipient.id, channel.recipient.displayName);
-    }
-    else {
-        const guildChannel = channel as GuildBasedChannel;
-        const members = await guildChannel.guild.members.fetch();
-        members.forEach((member) => {
-            memberMap.set(member.id, member.displayName);
-        });
-    }
-
-    let memberList: string[] = [];
-    memberMap.forEach((displayName, id) => {
-        memberList.push(`<@${id}> (${displayName})`);
-    });
-
-    return `Directory of members in the current server (or DM):\n${memberList.join('\n')}`;
-}
-
-/**
  * Given a channel (DM or guild), generates a map of user IDs to their usernames and display names.
  */
 async function getChannelMembers(channel: TextBasedChannel): Promise<Map<string, [string, string]>> {
     let memberMap: Map<string, [string, string]> = new Map<string, [string, string]>();
-    if (channel.type === ChannelType.DM) {
+    if (channel.type === ChannelType.DM && channel.recipient && channel.recipient.id) {
         memberMap.set(channel.recipient.id, [channel.recipient.username, channel.recipient.displayName]);
     }
-    else {
+    else if (channel.type !== ChannelType.DM) {
         const guildChannel = channel as GuildBasedChannel;
         const members = await guildChannel.guild.members.fetch();
         members.forEach((member) => {

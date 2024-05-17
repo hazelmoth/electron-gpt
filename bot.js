@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const action_bot_1 = require("./src/action-bot");
-const claudeai_1 = require("./src/models/claudeai");
+const openai_1 = require("./src/models/openai");
 // bot.ts
 const { Client, GatewayIntentBits, Partials, ChannelType, Events, MessageMentions } = require('discord.js');
 const client = new Client({
@@ -70,7 +70,7 @@ client.on('messageCreate', async (msg) => {
     if (msg.author.id === client.user.id)
         return;
     try {
-        const bot = new action_bot_1.ActionBot(client, new claudeai_1.ClaudeAI(), new claudeai_1.ClaudeAI());
+        const bot = new action_bot_1.ActionBot(client, new openai_1.OpenAiGpt(), new openai_1.OpenAiGpt());
         bot.onMessageReceived(msg);
     }
     catch (error) {
