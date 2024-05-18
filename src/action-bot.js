@@ -55,6 +55,8 @@ exports.PassAction = PassAction;
  */
 class ActionBot {
     constructor(client, model, contextCheckModel) {
+        /** The number of messages (including internal messages) received by the bot. */
+        this.messagesHandled = 0;
         this.client = client;
         this.model = model;
         this.contextCheckModel = contextCheckModel;
@@ -76,16 +78,8 @@ class ActionBot {
         }
         let formattedMessage = formatMessage(msg, client);
         if (msg.attachments.size > 0) {
-            let addendum = "";
-            if (msg.attachments.size === 1) {
-                addendum = this.formatInternalMessage("(This message contains an attachment, which you cannot view.)");
-            }
-            else {
-                addendum = this.formatInternalMessage("(This message contains attachments, which you cannot view.)");
-            }
-            msg.attachments.forEach((attachment) => {
-                addendum += ` ${attachment.name}`;
-            });
+            let addendum = this.formatInternalMessage(`This message contains ${msg.attachments.size === 1 ? 'an attachment' : 'attachments'}, which you cannot view.`);
+            addendum += " " + msg.attachments.map(attachment => attachment.name).join(', ');
             formattedMessage += "\n" + addendum;
         }
         const channel = msg.channel;
@@ -96,8 +90,38 @@ class ActionBot {
             console.error('Error while handling message:', error);
         }
     }
+    /**
+     * Generates an action in response to the message and executes it.
+     * Adds the response to the conversation history.
+     * If preempted by a new message, the response to the original message is ignored.
+     */
     async handleMessage(formattedMessage, channel) {
-        console.log(`[ActionBot] RECEIVING: ${formattedMessage}`);
+        console.log(`[ActionBot] RECEIVING #${this.messagesHandled + 1}: ${formattedMessage}`);
+        this.messagesHandled++;
+        let messageNumber = this.messagesHandled;
+        await new Promise(resolve => setTimeout(resolve, 750)); // Wait before calling API in case of rapid messages
+        if (messageNumber !== this.messagesHandled) {
+            console.log(`[ActionBot] Message ${messageNumber} was preempted by a new message before making API call.`);
+            return;
+        }
+        const modelResponse = await this.getBotResponse(formattedMessage, channel);
+        if (messageNumber !== this.messagesHandled) {
+            console.log(`[ActionBot] Message ${messageNumber} was preempted by a new message. Discarding API response.`);
+            return;
+        }
+        console.log(`[ActionBot] RESPONSE->#${messageNumber}: ${modelResponse}`);
+        if (!PassAction.prototype.matches(modelResponse)) {
+            await (0, conversation_1.addMessageToConversation)(GLOBAL_CONVERSATION_ID, modelResponse, "assistant");
+            let systemResponse = await this.executeAction(modelResponse);
+            if (!systemResponse) {
+                systemResponse = "Completed action. [PASS] if you're done, or take another action.";
+            }
+            const systemResponseFormatted = this.formatInternalMessage(systemResponse);
+            await (0, conversation_1.addMessageToConversation)(GLOBAL_CONVERSATION_ID, systemResponseFormatted, "user");
+            await this.handleMessage(systemResponseFormatted, channel);
+        }
+    }
+    async getBotResponse(formattedMessage, channel) {
         const client = this.client;
         // Format e.g. "[Current time: Saturday 3/14/2022, 12:00:00 PM pacific]"
         const timeOptions = {
@@ -127,17 +151,7 @@ class ActionBot {
         const { messageHistory, conversationId: newConversationId } = await (0, conversation_1.getMessageHistoryOrCreateMessage)(GLOBAL_CONVERSATION_ID, formattedMessage);
         const messageHistoryFormatted = replaceTimestamps(messageHistory);
         const modelResponse = await this.model.generate([...messageHistoryFormatted], systemMessage, 0.11, 512);
-        console.log(`[ActionBot] RESPONSE: ${modelResponse}`);
-        if (!PassAction.prototype.matches(modelResponse)) {
-            await (0, conversation_1.addMessageToConversation)(newConversationId, modelResponse, "assistant");
-            let systemResponse = await this.executeAction(modelResponse);
-            if (!systemResponse) {
-                systemResponse = "Completed action. [PASS] if you're done, or take another action.";
-            }
-            const systemResponseFormatted = this.formatInternalMessage(systemResponse);
-            await (0, conversation_1.addMessageToConversation)(newConversationId, systemResponseFormatted, "user");
-            this.handleMessage(systemResponseFormatted, channel);
-        }
+        return modelResponse;
     }
     async executeAction(message) {
         if (message) {
