@@ -60,7 +60,7 @@ export class DirectMessageAction extends BotAction {
         const user = this.client.users.cache.get(userId);
         if (user) {
             try {
-                user.send(userMessage);
+                await user.send(userMessage);
                 return null;
             } catch (error) {
                 return `Error sending message to user with ID ${userId}.`;
@@ -106,8 +106,12 @@ export class ChannelMessageAction extends BotAction {
         // Send the message to the channel
         const channel = this.client.channels.cache.get(channelId);
         if (channel && channel.isTextBased()) {
-            channel.send(channelMessage);
-            return null;
+            try {
+                await channel.send(channelMessage);
+                return null;
+            } catch (error) {
+                return `Error sending message to channel with ID ${channelId}.`;
+            }
         } else {
             return `Channel with ID ${channelId} not found.`;
         }

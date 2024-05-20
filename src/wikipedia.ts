@@ -11,8 +11,8 @@ async function fetchPageContent(articleName: string): Promise<string> {
         // Remove HTML tags and decode HTML entities from the content
         const summary = he.decode(content.replace(/<[^>]+>/g, '')).trim();
 
-        // Truncate the summary at 1000 characters
-        const truncatedSummary = summary.substring(0, 1000);
+        // Truncate the summary at 2000 characters
+        const truncatedSummary = summary.substring(0, 2000);
 
         return truncatedSummary;
     } catch (error) {

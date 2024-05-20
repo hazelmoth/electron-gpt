@@ -15,6 +15,12 @@ const Conversation = sequelize.define("Conversation", {
     }
 });
 
+export type BotMessage = {
+    role: string;
+    content: string;
+    imageUrls: string[];
+};
+
 export async function updateConversation(id, messageHistory) {
     try {
         await Conversation.update(
@@ -26,55 +32,39 @@ export async function updateConversation(id, messageHistory) {
     }
 }
 
-/* Adds the given prompt to the message history of the conversation with the given ID.
- *  If the conversation does not exist, it is created with the given prompt as the first message.
-/  Returns the message history and the conversation ID.
+/* Adds a user message to the conversation with the given ID.
+ * If the conversation does not exist, it is created with the given message as the first message.
+ * Returns the message history and the conversation ID.
 */
-export async function getMessageHistoryOrCreateMessage(conversationId, prompt) {
-    const [conversation, created] = await Conversation.findOrCreate({
-        where: { id: conversationId },
-        defaults: {
-            id: conversationId,
-            messages: JSON.stringify([{ role: 'user', content: prompt }])
-        }
-    });
-
-    let messageHistory: any[];
-
-    if (!created) {
-        messageHistory = JSON.parse(conversation.messages);
-        messageHistory.push({ role: 'user', content: prompt });
-        await conversation.update({ messages: JSON.stringify(messageHistory) });
-    } else {
-        messageHistory = [{ role: 'user', content: prompt }];
-    }
-
-    messageHistory = makeAlternating(messageHistory);
-
-    return { messageHistory, conversationId };
+export async function addUserMessageToConversation(conversationId: string, message: string, imageUrls: string[] = [])
+: Promise<{ messageHistory: BotMessage[], conversationId: string }> 
+{
+    return await addMessageToConversation(conversationId, message, "user", imageUrls);
 }
 
 /**
  * Adds a message to the conversation with the given ID.
  * If the conversation does not exist, it is created with the given message as the first message.
+ * Returns the message history and the conversation ID.
  */
-export async function addMessageToConversation(conversationId: string, message: string, role: string) {
+export async function addMessageToConversation(conversationId: string, message: string, role: string, imageUrls: string[] = [])
+: Promise<{ messageHistory: BotMessage[], conversationId: string }> {
     const [conversation, created] = await Conversation.findOrCreate({
         where: { id: conversationId },
         defaults: {
             id: conversationId,
-            messages: JSON.stringify([{ role, content: message }])
+            messages: JSON.stringify([{ role: role, content: message, imageUrls: imageUrls}])
         }
     });
 
-    let messageHistory: any[];
+    let messageHistory: BotMessage[];
 
     if (!created) {
         messageHistory = JSON.parse(conversation.messages);
-        messageHistory.push({ role, content: message });
+        messageHistory.push({ role: role, content: message, imageUrls: imageUrls });
         await conversation.update({ messages: JSON.stringify(messageHistory) });
     } else {
-        messageHistory = [{ role, content: message }];
+        messageHistory = [{ role: role, content: message, imageUrls: imageUrls }];
     }
 
     messageHistory = makeAlternating(messageHistory);
@@ -120,7 +110,7 @@ async function deleteConversation(id) {
 
 // Takes the first given fraction of the message history and aggregates it into one message using the given function.
 // Returns the aggregated message as well as the index of first message not included in the aggregation.
-function aggregateMessages(messageHistory: any[], fraction: number, aggregateFunction: (arg0: any[]) => any): object {
+function aggregateMessages(messageHistory: BotMessage[], fraction: number, aggregateFunction: (arg0: any[]) => any): { msg: any; n: number } {
     const messageCount = messageHistory.length;
     let countToAggregate = Math.floor(fraction * messageCount);
 
@@ -143,16 +133,17 @@ function aggregateMessages(messageHistory: any[], fraction: number, aggregateFun
 
 // Combines adjacent messages from the same role into one message
 // so that the conversation alternates between user and assistant.
-function makeAlternating(messageHistory: any[]) {
+function makeAlternating(messageHistory: BotMessage[]): BotMessage[] {
     let alternatingMessages = [];
     let lastRole = null;
     for (const message of messageHistory) {
         if (lastRole === message.role) {
             const lastMessage = alternatingMessages.pop();
             lastMessage.content += "\n\n" + message.content;
+            lastMessage.imageUrls = (lastMessage.imageUrls || []).concat(message.imageUrls);
             alternatingMessages.push(lastMessage);
         } else {
-            alternatingMessages.push(message);
+            alternatingMessages.push({ ...message });
         }
         lastRole = message.role;
     }
@@ -164,4 +155,4 @@ function makeAlternating(messageHistory: any[]) {
     await sequelize.sync();
 })();
 
-module.exports = { getMessageHistoryOrCreateMessage, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };
+module.exports = { addUserMessageToConversation, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };

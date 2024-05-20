@@ -13,7 +13,7 @@ const model = "gpt-4o";
  */
 async function generate(messages, systemMessage, temperature = 0, maxTokens = 4096) {
     try {
-        const completion = await openai.chat.completions.create({
+        var request = {
             model: model,
             max_tokens: maxTokens,
             messages: [
@@ -21,10 +21,17 @@ async function generate(messages, systemMessage, temperature = 0, maxTokens = 40
                     role: "system",
                     content: systemMessage,
                 },
-                ...messages,
+                ...messages.map((message) => ({
+                    role: message.role,
+                    content: [
+                        { type: "text", text: message.content },
+                        ...(message.imageUrls ? message.imageUrls.map((url) => ({ type: "image_url", image_url: { "url": url } })) : [])
+                    ],
+                })),
             ],
             temperature: temperature
-        });
+        };
+        const completion = await openai.chat.completions.create(request);
         return completion.choices[0].message.content;
     }
     catch (error) {

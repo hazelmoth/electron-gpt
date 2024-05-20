@@ -4,7 +4,7 @@ import { ChannelType, GuildBasedChannel, Message, TextBasedChannel } from 'disco
 import { BotAction, DirectMessageAction, ChannelMessageAction, WikipediaSummaryAction, HttpGetAction } from './actions';
 import { CustomClient } from './custom-client';
 import { Model } from './models/model';
-import { getMessageHistoryOrCreateMessage, addMessageToConversation } from './conversation';
+import { addUserMessageToConversation, addMessageToConversation, BotMessage } from './conversation';
 
 const CHANNEL_MAP = new Map<string, string>([
     ["commons", "1172266862000738435"],
@@ -90,19 +90,14 @@ export class ActionBot {
         }
 
         let formattedMessage = formatMessage(msg, client);
-
-        if (msg.attachments.size > 0) {
-            let addendum = this.formatInternalMessage(
-                `This message contains ${msg.attachments.size === 1 ? 'an attachment' : 'attachments'}, which you cannot view.`
-            );
-            addendum += " " + msg.attachments.map(attachment => attachment.name).join(', ');
-            formattedMessage += "\n" + addendum;
-        }
+        
+        const { imageUrls, attachmentsSummary } = this.getAttachments(msg);
+        formattedMessage += attachmentsSummary;
 
         const channel = msg.channel as TextBasedChannel;
 
         try {
-            await this.handleMessage(formattedMessage, channel);
+            await this.handleMessage(channel, formattedMessage, imageUrls);
         } catch (error) {
             console.error('Error while handling message:', error);
         }
@@ -113,7 +108,7 @@ export class ActionBot {
      * Adds the response to the conversation history.
      * If preempted by a new message, the response to the original message is ignored.
      */
-    async handleMessage(formattedMessage: string, channel: TextBasedChannel): Promise<void> {
+    async handleMessage(channel: TextBasedChannel, formattedMessage: string, imageUrls: string[] = []): Promise<void> {
         console.log(`[ActionBot] RECEIVING #${this.messagesHandled + 1}: ${formattedMessage}`);
 
         this.messagesHandled++;
@@ -126,7 +121,7 @@ export class ActionBot {
             return;
         }
 
-        const modelResponse = await this.getBotResponse(formattedMessage, channel);
+        const modelResponse = await this.getBotResponse(channel, formattedMessage, imageUrls);
 
         if (messageNumber !== this.messagesHandled) {
             console.log(`[ActionBot] Message ${messageNumber} was preempted by a new message. Discarding API response.`);
@@ -136,19 +131,21 @@ export class ActionBot {
         console.log(`[ActionBot] RESPONSE->#${messageNumber}: ${modelResponse}`);
 
         if (!PassAction.prototype.matches(modelResponse)) {
-            await addMessageToConversation(GLOBAL_CONVERSATION_ID, modelResponse, "assistant");
+            await addMessageToConversation(GLOBAL_CONVERSATION_ID, modelResponse, "assistant",);
             let systemResponse = await this.executeAction(modelResponse);
             if (!systemResponse) {
-                systemResponse = "Completed action. [PASS] if you're done, or take another action."
+                systemResponse = 
+`Completed action. [PASS] if you're done, or take another action. 
+(Don't immediately follow up in the same channel, unless you weren't finished.)`;
             }
             
             const systemResponseFormatted = this.formatInternalMessage(systemResponse);
             await addMessageToConversation(GLOBAL_CONVERSATION_ID, systemResponseFormatted, "user");
-            await this.handleMessage(systemResponseFormatted, channel);
+            await this.handleMessage(channel, systemResponseFormatted);
         }
     }
 
-    async getBotResponse(formattedMessage: string, channel: TextBasedChannel): Promise<string> {
+    async getBotResponse(channel: TextBasedChannel, formattedMessage: string, imageUrls: string[] = []): Promise<string> {
         const client = this.client;
 
         // Format e.g. "[Current time: Saturday 3/14/2022, 12:00:00 PM pacific]"
@@ -181,8 +178,7 @@ export class ActionBot {
 
         //console.log(`[ActionBot] Current system message: ${systemMessage}`)
 
-        const { messageHistory, conversationId: newConversationId } = 
-            await getMessageHistoryOrCreateMessage(GLOBAL_CONVERSATION_ID, formattedMessage);
+        const { messageHistory, conversationId } = await addUserMessageToConversation(GLOBAL_CONVERSATION_ID, formattedMessage, imageUrls);
 
         const messageHistoryFormatted = replaceTimestamps(messageHistory);
 
@@ -223,6 +219,44 @@ export class ActionBot {
         return null;
     }
 
+    /**
+     * Returns the URLS of supported image attachments in a message, and
+     * an addendum to the message describing all attachments.
+     */
+    getAttachments(msg: Message): { imageUrls: string[], attachmentsSummary: string } {
+        let imageUrls: string[] = [];
+        let imageNames: string[] = [];
+        let unsupportedFileNames: string[] = [];
+
+        if (!msg.attachments) {
+            return { imageUrls, attachmentsSummary: "" };
+        }
+
+        msg.attachments.forEach((attachment) => {
+            if (attachment.name.endsWith('.png') || attachment.name.endsWith('.jpg') || attachment.name.endsWith('.jpeg') || attachment.name.endsWith('.webp')) {
+                // TODO ignoring image attachments for now. I think they're only accessible with URL parameters which the API doesn't support (?)
+                //imageUrls.push(attachment.url.split('?')[0]);
+                //imageNames.push(attachment.name);
+                unsupportedFileNames.push(attachment.name);
+            } else {
+                unsupportedFileNames.push(attachment.name);
+            }
+        });
+
+        let msgAddendum = "";
+        if (imageNames.length > 0) {
+            msgAddendum += "\n";
+            msgAddendum += this.formatInternalMessage("Image(s) attached: " + imageNames.join(', '));
+        }
+        if (unsupportedFileNames.length > 0) {
+            msgAddendum += "\n";
+            msgAddendum += this.formatInternalMessage("Unsupported file(s) attached (which you can't view): " + unsupportedFileNames.join(', '));
+        }
+
+        return { imageUrls, attachmentsSummary: msgAddendum };
+    }
+
+
     formatInternalMessage(message: string): string {
         return `[SYSTEM] ${message}`;
     }
@@ -247,7 +281,7 @@ export class ActionBot {
      * Returns a prompt listing the actions that can be performed.
     */
     generateActionListPrompt(actions: BotAction[]): string {
-        const ACTION_LIST_PROMPT = "Your response MUST begin with an \"[ACTION]\" tag and MUST match one of the following action signatures:";
+        const ACTION_LIST_PROMPT = "Your response MUST begin with an action tag and MUST match one of the following action signatures:";
         const ACTION_LIST_SUFFIX = "You should [PASS] if they're not talking to you, the message isn't relevant to you, or you've finished what you were doing."
         return `${ACTION_LIST_PROMPT}\n${actions.map((action) => `"${action.signature}" - ${action.description}`).join('\n')}\n${ACTION_LIST_SUFFIX}`;
     }
@@ -404,7 +438,7 @@ function replaceMentions(msgContent: string, client: CustomClient): string {
     
 // Replaces timestamps in the message history with a string representing the time elapsed since it was sent.
 // Does not modify the original message history.
-function replaceTimestamps(messageHistory: any[]): any[] {
+function replaceTimestamps(messageHistory: BotMessage[]): BotMessage[] {
     const newMessageHistory = JSON.parse(JSON.stringify(messageHistory));
     for (let i = 0; i < newMessageHistory.length; i++) {
         // timestamp is any number of digits between $$$. messages get combined so there may be multiple timestamps in one message

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addMessageToConversation = exports.getMessageHistoryOrCreateMessage = exports.updateConversation = void 0;
+exports.addMessageToConversation = exports.addUserMessageToConversation = exports.updateConversation = void 0;
 const { DataTypes } = require("sequelize");
 const { v4: uuidv4 } = require("uuid");
 const sequelize = require("../database");
@@ -25,51 +25,35 @@ async function updateConversation(id, messageHistory) {
     }
 }
 exports.updateConversation = updateConversation;
-/* Adds the given prompt to the message history of the conversation with the given ID.
- *  If the conversation does not exist, it is created with the given prompt as the first message.
-/  Returns the message history and the conversation ID.
+/* Adds a user message to the conversation with the given ID.
+ * If the conversation does not exist, it is created with the given message as the first message.
+ * Returns the message history and the conversation ID.
 */
-async function getMessageHistoryOrCreateMessage(conversationId, prompt) {
-    const [conversation, created] = await Conversation.findOrCreate({
-        where: { id: conversationId },
-        defaults: {
-            id: conversationId,
-            messages: JSON.stringify([{ role: 'user', content: prompt }])
-        }
-    });
-    let messageHistory;
-    if (!created) {
-        messageHistory = JSON.parse(conversation.messages);
-        messageHistory.push({ role: 'user', content: prompt });
-        await conversation.update({ messages: JSON.stringify(messageHistory) });
-    }
-    else {
-        messageHistory = [{ role: 'user', content: prompt }];
-    }
-    messageHistory = makeAlternating(messageHistory);
-    return { messageHistory, conversationId };
+async function addUserMessageToConversation(conversationId, message, imageUrls = []) {
+    return await addMessageToConversation(conversationId, message, "user", imageUrls);
 }
-exports.getMessageHistoryOrCreateMessage = getMessageHistoryOrCreateMessage;
+exports.addUserMessageToConversation = addUserMessageToConversation;
 /**
  * Adds a message to the conversation with the given ID.
  * If the conversation does not exist, it is created with the given message as the first message.
+ * Returns the message history and the conversation ID.
  */
-async function addMessageToConversation(conversationId, message, role) {
+async function addMessageToConversation(conversationId, message, role, imageUrls = []) {
     const [conversation, created] = await Conversation.findOrCreate({
         where: { id: conversationId },
         defaults: {
             id: conversationId,
-            messages: JSON.stringify([{ role, content: message }])
+            messages: JSON.stringify([{ role: role, content: message, imageUrls: imageUrls }])
         }
     });
     let messageHistory;
     if (!created) {
         messageHistory = JSON.parse(conversation.messages);
-        messageHistory.push({ role, content: message });
+        messageHistory.push({ role: role, content: message, imageUrls: imageUrls });
         await conversation.update({ messages: JSON.stringify(messageHistory) });
     }
     else {
-        messageHistory = [{ role, content: message }];
+        messageHistory = [{ role: role, content: message, imageUrls: imageUrls }];
     }
     messageHistory = makeAlternating(messageHistory);
     return { messageHistory, conversationId };
@@ -134,10 +118,11 @@ function makeAlternating(messageHistory) {
         if (lastRole === message.role) {
             const lastMessage = alternatingMessages.pop();
             lastMessage.content += "\n\n" + message.content;
+            lastMessage.imageUrls = (lastMessage.imageUrls || []).concat(message.imageUrls);
             alternatingMessages.push(lastMessage);
         }
         else {
-            alternatingMessages.push(message);
+            alternatingMessages.push({ ...message });
         }
         lastRole = message.role;
     }
@@ -146,4 +131,4 @@ function makeAlternating(messageHistory) {
 (async () => {
     await sequelize.sync();
 })();
-module.exports = { getMessageHistoryOrCreateMessage, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };
+module.exports = { addUserMessageToConversation, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };

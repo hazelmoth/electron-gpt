@@ -1,3 +1,5 @@
+import { BotMessage } from '../conversation';
+
 export interface Model {
-    generate(messages: any[], systemMessage: string, temperature: number, maxTokens: number): Promise<string>;
+    generate(messages: BotMessage[], systemMessage: string, temperature: number, maxTokens: number): Promise<string>;
 }

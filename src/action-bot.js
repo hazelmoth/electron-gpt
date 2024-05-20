@@ -77,14 +77,11 @@ class ActionBot {
             return;
         }
         let formattedMessage = formatMessage(msg, client);
-        if (msg.attachments.size > 0) {
-            let addendum = this.formatInternalMessage(`This message contains ${msg.attachments.size === 1 ? 'an attachment' : 'attachments'}, which you cannot view.`);
-            addendum += " " + msg.attachments.map(attachment => attachment.name).join(', ');
-            formattedMessage += "\n" + addendum;
-        }
+        const { imageUrls, attachmentsSummary } = this.getAttachments(msg);
+        formattedMessage += attachmentsSummary;
         const channel = msg.channel;
         try {
-            await this.handleMessage(formattedMessage, channel);
+            await this.handleMessage(channel, formattedMessage, imageUrls);
         }
         catch (error) {
             console.error('Error while handling message:', error);
@@ -95,7 +92,7 @@ class ActionBot {
      * Adds the response to the conversation history.
      * If preempted by a new message, the response to the original message is ignored.
      */
-    async handleMessage(formattedMessage, channel) {
+    async handleMessage(channel, formattedMessage, imageUrls = []) {
         console.log(`[ActionBot] RECEIVING #${this.messagesHandled + 1}: ${formattedMessage}`);
         this.messagesHandled++;
         let messageNumber = this.messagesHandled;
@@ -104,7 +101,7 @@ class ActionBot {
             console.log(`[ActionBot] Message ${messageNumber} was preempted by a new message before making API call.`);
             return;
         }
-        const modelResponse = await this.getBotResponse(formattedMessage, channel);
+        const modelResponse = await this.getBotResponse(channel, formattedMessage, imageUrls);
         if (messageNumber !== this.messagesHandled) {
             console.log(`[ActionBot] Message ${messageNumber} was preempted by a new message. Discarding API response.`);
             return;
@@ -114,14 +111,16 @@ class ActionBot {
             await (0, conversation_1.addMessageToConversation)(GLOBAL_CONVERSATION_ID, modelResponse, "assistant");
             let systemResponse = await this.executeAction(modelResponse);
             if (!systemResponse) {
-                systemResponse = "Completed action. [PASS] if you're done, or take another action.";
+                systemResponse =
+                    `Completed action. [PASS] if you're done, or take another action. 
+(Don't immediately follow up in the same channel, unless you weren't finished.)`;
             }
             const systemResponseFormatted = this.formatInternalMessage(systemResponse);
             await (0, conversation_1.addMessageToConversation)(GLOBAL_CONVERSATION_ID, systemResponseFormatted, "user");
-            await this.handleMessage(systemResponseFormatted, channel);
+            await this.handleMessage(channel, systemResponseFormatted);
         }
     }
-    async getBotResponse(formattedMessage, channel) {
+    async getBotResponse(channel, formattedMessage, imageUrls = []) {
         const client = this.client;
         // Format e.g. "[Current time: Saturday 3/14/2022, 12:00:00 PM pacific]"
         const timeOptions = {
@@ -148,7 +147,7 @@ class ActionBot {
             (await generateUserDirectoryMessage(client)) + "\n\n" +
             this.generateActionListPrompt(this.actions);
         //console.log(`[ActionBot] Current system message: ${systemMessage}`)
-        const { messageHistory, conversationId: newConversationId } = await (0, conversation_1.getMessageHistoryOrCreateMessage)(GLOBAL_CONVERSATION_ID, formattedMessage);
+        const { messageHistory, conversationId } = await (0, conversation_1.addUserMessageToConversation)(GLOBAL_CONVERSATION_ID, formattedMessage, imageUrls);
         const messageHistoryFormatted = replaceTimestamps(messageHistory);
         const modelResponse = await this.model.generate([...messageHistoryFormatted], systemMessage, 0.11, 512);
         return modelResponse;
@@ -178,6 +177,39 @@ class ActionBot {
         }
         return null;
     }
+    /**
+     * Returns the URLS of supported image attachments in a message, and
+     * an addendum to the message describing all attachments.
+     */
+    getAttachments(msg) {
+        let imageUrls = [];
+        let imageNames = [];
+        let unsupportedFileNames = [];
+        if (!msg.attachments) {
+            return { imageUrls, attachmentsSummary: "" };
+        }
+        msg.attachments.forEach((attachment) => {
+            if (attachment.name.endsWith('.png') || attachment.name.endsWith('.jpg') || attachment.name.endsWith('.jpeg') || attachment.name.endsWith('.webp')) {
+                // TODO ignoring image attachments for now. I think they're only accessible with URL parameters which the API doesn't support (?)
+                //imageUrls.push(attachment.url.split('?')[0]);
+                //imageNames.push(attachment.name);
+                unsupportedFileNames.push(attachment.name);
+            }
+            else {
+                unsupportedFileNames.push(attachment.name);
+            }
+        });
+        let msgAddendum = "";
+        if (imageNames.length > 0) {
+            msgAddendum += "\n";
+            msgAddendum += this.formatInternalMessage("Image(s) attached: " + imageNames.join(', '));
+        }
+        if (unsupportedFileNames.length > 0) {
+            msgAddendum += "\n";
+            msgAddendum += this.formatInternalMessage("Unsupported file(s) attached (which you can't view): " + unsupportedFileNames.join(', '));
+        }
+        return { imageUrls, attachmentsSummary: msgAddendum };
+    }
     formatInternalMessage(message) {
         return `[SYSTEM] ${message}`;
     }
@@ -200,7 +232,7 @@ class ActionBot {
      * Returns a prompt listing the actions that can be performed.
     */
     generateActionListPrompt(actions) {
-        const ACTION_LIST_PROMPT = "Your response MUST begin with an \"[ACTION]\" tag and MUST match one of the following action signatures:";
+        const ACTION_LIST_PROMPT = "Your response MUST begin with an action tag and MUST match one of the following action signatures:";
         const ACTION_LIST_SUFFIX = "You should [PASS] if they're not talking to you, the message isn't relevant to you, or you've finished what you were doing.";
         return `${ACTION_LIST_PROMPT}\n${actions.map((action) => `"${action.signature}" - ${action.description}`).join('\n')}\n${ACTION_LIST_SUFFIX}`;
     }
