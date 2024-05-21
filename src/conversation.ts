@@ -74,7 +74,7 @@ export async function addMessageToConversation(conversationId: string, message: 
 
 async function getConversations() {
     const conversations = await Conversation.findAll();
-    return conversations.map((conversation) => {
+    return conversations.map((conversation: { id: any; messages: any; }) => {
         return {
             id: conversation.id,
             messages: conversation.messages,
@@ -82,13 +82,10 @@ async function getConversations() {
     });
 }
 
-async function getConversationFromID(id) {
+async function getConversationFromID(id) : Promise<BotMessage[]> {
     const conversation = await Conversation.findOne({ where: { id } });
     if (conversation) {
-        return {
-            id: conversation.id,
-            messages: conversation.messages,
-        };
+        return JSON.parse(conversation.messages);
     }
     return null;
 }
@@ -106,29 +103,6 @@ async function deleteConversation(id) {
         console.error("Error deleting conversation :", error);
         return false;
     }
-}
-
-// Takes the first given fraction of the message history and aggregates it into one message using the given function.
-// Returns the aggregated message as well as the index of first message not included in the aggregation.
-function aggregateMessages(messageHistory: BotMessage[], fraction: number, aggregateFunction: (arg0: any[]) => any): { msg: any; n: number } {
-    const messageCount = messageHistory.length;
-    let countToAggregate = Math.floor(fraction * messageCount);
-
-    // only do an even number of messages
-    if (countToAggregate % 2 !== 0) {
-        countToAggregate--;
-    }
-
-    if (countToAggregate <= 0) {
-        console.log("Not enough messages to aggregate");
-        return { msg: null, n: 0 };
-    }
-
-    const messages = messageHistory.slice(0, countToAggregate);
-
-    let aggregatedMessage = aggregateFunction(messages);
-
-    return { msg: aggregatedMessage, n: countToAggregate };
 }
 
 // Combines adjacent messages from the same role into one message
@@ -155,4 +129,4 @@ function makeAlternating(messageHistory: BotMessage[]): BotMessage[] {
     await sequelize.sync();
 })();
 
-module.exports = { addUserMessageToConversation, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };
+module.exports = { addUserMessageToConversation, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation };

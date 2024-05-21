@@ -71,10 +71,7 @@ async function getConversations() {
 async function getConversationFromID(id) {
     const conversation = await Conversation.findOne({ where: { id } });
     if (conversation) {
-        return {
-            id: conversation.id,
-            messages: conversation.messages,
-        };
+        return JSON.parse(conversation.messages);
     }
     return null;
 }
@@ -91,23 +88,6 @@ async function deleteConversation(id) {
         console.error("Error deleting conversation :", error);
         return false;
     }
-}
-// Takes the first given fraction of the message history and aggregates it into one message using the given function.
-// Returns the aggregated message as well as the index of first message not included in the aggregation.
-function aggregateMessages(messageHistory, fraction, aggregateFunction) {
-    const messageCount = messageHistory.length;
-    let countToAggregate = Math.floor(fraction * messageCount);
-    // only do an even number of messages
-    if (countToAggregate % 2 !== 0) {
-        countToAggregate--;
-    }
-    if (countToAggregate <= 0) {
-        console.log("Not enough messages to aggregate");
-        return { msg: null, n: 0 };
-    }
-    const messages = messageHistory.slice(0, countToAggregate);
-    let aggregatedMessage = aggregateFunction(messages);
-    return { msg: aggregatedMessage, n: countToAggregate };
 }
 // Combines adjacent messages from the same role into one message
 // so that the conversation alternates between user and assistant.
@@ -131,4 +111,4 @@ function makeAlternating(messageHistory) {
 (async () => {
     await sequelize.sync();
 })();
-module.exports = { addUserMessageToConversation, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation, aggregateMessages };
+module.exports = { addUserMessageToConversation, addMessageToConversation, updateConversation, getConversations, getConversationFromID, deleteConversation };

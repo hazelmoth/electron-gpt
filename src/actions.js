@@ -1,10 +1,7 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HttpGetAction = exports.WikipediaSummaryAction = exports.ChannelMessageAction = exports.DirectMessageAction = exports.BotAction = void 0;
-const wikipedia_1 = __importDefault(require("./wikipedia"));
+exports.HttpGetAction = exports.WikipediaAction = exports.ChannelMessageAction = exports.DirectMessageAction = exports.BotAction = void 0;
+const wikipedia_1 = require("./wikipedia");
 /**
  * A class representing an action that the bot can take.
  * Has a signature (e.g. "[DM <@1234567890>] <message>") and a description.
@@ -102,27 +99,34 @@ class ChannelMessageAction extends BotAction {
 }
 exports.ChannelMessageAction = ChannelMessageAction;
 /**
- * An action for querying a page extract from Wikipedia.
- * Takes a page name as a parameter.
-* [WIKI page-name]
-*/
-class WikipediaSummaryAction extends BotAction {
+ * An action for querying Wikipedia.
+ * Takes a page name or a page name with a section name as a parameter.
+ * [WIKI page name] or [WIKI page name#section name]
+ */
+class WikipediaAction extends BotAction {
     constructor() {
-        super("[WIKI page name]", "Fetches a summary of the specified Wikipedia page.");
+        super("[WIKI page name] or [WIKI page name#section name]", "Fetches the summary of a Wikipedia page or a specific section of the page.");
     }
     async execute(message) {
-        // Extract the search term from the input
-        const matches = message.match(/^\[WIKI ([\s\S]*)]$/s);
+        // Extract the search term and section name from the input
+        const matches = message.match(/^\[WIKI ([^\]]+)]$|^\[WIKI ([^\]]+)#([^\]]+)]$/s);
         if (!matches) {
-            return "Invalid syntax. Please use the following format: [SEARCHWIKI page name]";
+            return "Invalid syntax. Please use the following format: [WIKI page name] or [WIKI page name#section name]";
         }
-        const articleName = matches[1];
+        const articleName = matches[1] || matches[2];
+        const sectionName = matches[3];
         try {
-            const response = await (0, wikipedia_1.default)(articleName);
-            return response;
+            if (sectionName) {
+                const response = await (0, wikipedia_1.fetchSectionContent)(articleName, sectionName);
+                return response;
+            }
+            else {
+                const response = await (0, wikipedia_1.fetchPageContent)(articleName);
+                return response;
+            }
         }
         catch (error) {
-            return 'Failed to fetch page content from Wikipedia';
+            return 'Failed to fetch content from Wikipedia';
         }
     }
     matches(message) {
@@ -130,7 +134,7 @@ class WikipediaSummaryAction extends BotAction {
         return !!matches;
     }
 }
-exports.WikipediaSummaryAction = WikipediaSummaryAction;
+exports.WikipediaAction = WikipediaAction;
 /**
  * An action to make arbitrary HTTP requests.
  */

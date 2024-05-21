@@ -13,7 +13,22 @@ const model = "gpt-4o";
  */
 async function generate(messages, systemMessage, temperature = 0, maxTokens = 4096) {
     try {
-        var request = {
+        // Sequentially fetch images as base64 strings
+        const processedMessages = await Promise.all(messages.map(async (message) => {
+            const imagePromises = message.imageUrls ? message.imageUrls.map(async (url) => {
+                const base64Image = await fetchImage(url);
+                return { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } };
+            }) : [];
+            const images = await Promise.all(imagePromises);
+            return {
+                role: message.role,
+                content: [
+                    { type: "text", text: message.content },
+                    ...images
+                ],
+            };
+        }));
+        const request = {
             model: model,
             max_tokens: maxTokens,
             messages: [
@@ -21,13 +36,7 @@ async function generate(messages, systemMessage, temperature = 0, maxTokens = 40
                     role: "system",
                     content: systemMessage,
                 },
-                ...messages.map((message) => ({
-                    role: message.role,
-                    content: [
-                        { type: "text", text: message.content },
-                        ...(message.imageUrls ? message.imageUrls.map((url) => ({ type: "image_url", image_url: { "url": url } })) : [])
-                    ],
-                })),
+                ...processedMessages,
             ],
             temperature: temperature
         };
@@ -36,9 +45,24 @@ async function generate(messages, systemMessage, temperature = 0, maxTokens = 40
     }
     catch (error) {
         console.error('Error while generating text:', error);
+        return null;
     }
 }
 exports.generate = generate;
+/**
+ * Fetches an image from a URL and returns it as a base64 string
+ */
+async function fetchImage(url) {
+    try {
+        const response = await fetch(url);
+        const buffer = await response.arrayBuffer();
+        return Buffer.from(buffer).toString('base64'); // Use 'base64' encoding
+    }
+    catch (error) {
+        console.error('Error while fetching image:', error);
+        return null;
+    }
+}
 class OpenAiGpt {
     async generate(messages, systemMessage, temperature, maxTokens) {
         return generate(messages, systemMessage, temperature, maxTokens);

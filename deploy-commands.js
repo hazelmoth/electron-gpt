@@ -1,11 +1,22 @@
 const { REST, Routes } = require('discord.js');
 const fs = require('node:fs');
 const path = require('node:path');
-require('dotenv').config({ path: __dirname + '/.env' });
+const dotenv = require('dotenv');
+
+dotenv.config({ path: __dirname + '/.env' });
+
+const args = process.argv.slice(2);
+if (args.length > 0 && args[0] === 'tatters') {
+	dotenv.config({ path: './.env.tatters' });
+	console.log("Using .env.tatters");
+  } else {
+	// Default to .env.melu
+	dotenv.config({ path: './.env.melu' });
+	console.log("Using .env.melu");
+}
 
 const commands = [];
-// Grab all the command files from the commands directory you created earlier
-const foldersPath = path.join(__dirname, 'commands');
+const foldersPath = path.join(__dirname, 'src/commands');
 const commandFolders = fs.readdirSync(foldersPath);
 
 for (const folder of commandFolders) {

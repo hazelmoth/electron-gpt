@@ -1,7 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
+import { BotMessage } from "../../conversation";
+
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 require('dotenv').config({ path: __dirname + '/.env' });
+
 const botName = process.env.CONVERSATION_ID;
 const prompt = `you are a discord bot called ${botName}. right now you are condensing your longterm memory of events.
 
@@ -25,6 +26,7 @@ each of the two sections MUST BE UNDER 1000 words (so collectively 2000 words ma
 if a section is too long, start cutting out the least important details, or combining related details together.
 
 include nothing other than the headers and bullet points. DO NOT offer any additional commentary, analysis, or explanation.`;
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('aggregate')
@@ -34,77 +36,101 @@ module.exports = {
         if (interaction.user.id !== process.env.ADMIN_USERID) {
             await interaction.reply({
                 content: 'You do not have permission to use this command.',
-                ephemeral: true
+                ephemeral: true 
             });
             return;
         }
+        
         const { updateConversation, getConversationFromID } = require('../../conversation');
         const { generate } = require("../../models/openai");
+
         // get the conversation ID from env
         const conversationId = process.env.CONVERSATION_ID;
-        const messageHistory = await getConversationFromID(conversationId);
+        const messageHistory: BotMessage[] = await getConversationFromID(conversationId);
+
         console.log('Aggregating conversation', conversationId);
         console.log('Messages string length:', messageHistory.length);
+
         const aggregateResult = aggregateMessages(messageHistory, 0.5, (messages) => {
             return messages.map((message) => message.content).join('\n');
         });
+
         if (!aggregateResult.msg) {
             await interaction.editReply({ content: 'Failed to aggregate messages.' });
             return;
         }
+        
         const joinedMessages = aggregateResult.msg;
         const nextIndex = aggregateResult.n;
+
         let summary = "";
         try {
-            summary = await generate([{
+            summary = await generate(
+                [{
                     role: 'user',
                     content: joinedMessages
-                }], prompt, 0, 2048);
+                }], 
+                prompt,
+                0,
+                2048
+            );
             summary = "[PREVIOUS LONGTERM MEMORY]\n" + summary;
-        }
-        catch (error) {
+        } catch (error) {
             console.error("Error generating summary:", error);
             await interaction.editReply({ content: 'Failed to generate summary.' });
             return;
         }
+
         if (!summary) {
             console.log('Failed to generate summary');
             await interaction.editReply({ content: 'Failed to generate summary.' });
             return;
         }
+
         console.log(`\n\n${summary}\n\n`);
+
         const newMessageHistory = messageHistory.slice(nextIndex);
         newMessageHistory.unshift({ role: 'user', content: summary, imageUrls: [] });
+
         try {
             await updateConversation(conversationId, newMessageHistory);
-        }
-        catch (error) {
+        } catch (error) {
             console.error("Error updating conversation:", error);
             await interaction.editReply({ content: 'Failed to update conversation history.' });
             return;
         }
+
         try {
             await interaction.editReply({ content: 'Aggregated message history for ' + conversationId });
-        }
-        catch (error) {
+        } catch (error) {
             console.error("Error replying to interaction:", error);
         }
     }
 };
+
 // Takes the first given fraction of the message history and aggregates it into one message using the given function.
 // Returns the aggregated message as well as the index of first message not included in the aggregation.
-function aggregateMessages(messageHistory, fraction, aggregateFunction) {
+function aggregateMessages(
+    messageHistory: BotMessage[], 
+    fraction: number, 
+    aggregateFunction: (arg0: any[]) => any
+): { msg: any; n: number } {
     const messageCount = messageHistory.length;
     let countToAggregate = Math.floor(fraction * messageCount);
+
     // only do an even number of messages
     if (countToAggregate % 2 !== 0) {
         countToAggregate--;
     }
+
     if (countToAggregate <= 0) {
         console.log("Not enough messages to aggregate");
         return { msg: null, n: 0 };
     }
+
     const messages = messageHistory.slice(0, countToAggregate);
+
     let aggregatedMessage = aggregateFunction(messages);
+
     return { msg: aggregatedMessage, n: countToAggregate };
 }

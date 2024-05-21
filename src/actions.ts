@@ -1,6 +1,6 @@
 import { CustomClient } from './custom-client';
 import { TextChannel } from 'discord.js';
-import fetchPageContent from './wikipedia';
+import { fetchPageContent, fetchSectionContent } from './wikipedia';
 
 /**
  * A class representing an action that the bot can take.
@@ -124,29 +124,35 @@ export class ChannelMessageAction extends BotAction {
 }
 
 /**
- * An action for querying a page extract from Wikipedia.
- * Takes a page name as a parameter.
-* [WIKI page-name]
-*/
-export class WikipediaSummaryAction extends BotAction {
+ * An action for querying Wikipedia.
+ * Takes a page name or a page name with a section name as a parameter.
+ * [WIKI page name] or [WIKI page name#section name]
+ */
+export class WikipediaAction extends BotAction {
     constructor() {
-        super("[WIKI page name]", "Fetches a summary of the specified Wikipedia page.");
+        super("[WIKI page name] or [WIKI page name#section name]", "Fetches the summary of a Wikipedia page or a specific section of the page.");
     }
 
     async execute(message: string): Promise<string> {
-        // Extract the search term from the input
-        const matches = message.match(/^\[WIKI ([\s\S]*)]$/s);
+        // Extract the search term and section name from the input
+        const matches = message.match(/^\[WIKI ([^\]]+)]$|^\[WIKI ([^\]]+)#([^\]]+)]$/s);
         if (!matches) {
-            return "Invalid syntax. Please use the following format: [SEARCHWIKI page name]";
+            return "Invalid syntax. Please use the following format: [WIKI page name] or [WIKI page name#section name]";
         }
 
-        const articleName = matches[1];
+        const articleName = matches[1] || matches[2];
+        const sectionName = matches[3];
 
         try {
-            const response = await fetchPageContent(articleName);
-            return response;
+            if (sectionName) {
+                const response = await fetchSectionContent(articleName, sectionName);
+                return response;
+            } else {
+                const response = await fetchPageContent(articleName);
+                return response;
+            }
         } catch (error) {
-            return 'Failed to fetch page content from Wikipedia';
+            return 'Failed to fetch content from Wikipedia';
         }
     }
 
