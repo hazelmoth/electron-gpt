@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const action_bot_1 = require("./src/action-bot");
+const claudeai_1 = require("./src/models/claudeai");
 const openai_1 = require("./src/models/openai");
 const dotenv = require('dotenv');
 const fs = require('fs');
@@ -65,7 +66,7 @@ if (args.length > 0 && args[0] === 'tatters') {
 else {
     // Default to .env.melu
     dotenv.config({ path: './.env.melu' });
-    bot = new action_bot_1.ActionBot(client, new openai_1.OpenAiGpt(), MELU_PERSONALITY_MSG);
+    bot = new action_bot_1.ActionBot(client, new claudeai_1.ClaudeAI(), MELU_PERSONALITY_MSG);
 }
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);

@@ -95,12 +95,12 @@ export class ActionBot {
      * If preempted by a new message, the response to the original message is ignored.
      */
     async handleMessage(channel: TextBasedChannel, formattedMessage: string, imageUrls: string[] = []): Promise<void> {
-        import('chalk').then(chalk => {
-            console.log(`${chalk.default.gray(LOG_TAG)} ${chalk.default.cyan("RECEIVING #" + (this.messagesHandled + 1))}: ${chalk.default.rgb(180,180,180)(formattedMessage)}`);
-        });
-
         this.messagesHandled++;
-        let messageNumber = this.messagesHandled;
+        const messageNumber = this.messagesHandled;
+        
+        import('chalk').then(chalk => {
+            console.log(`${chalk.default.gray(LOG_TAG)} ${chalk.default.cyan("RECEIVING #" + (messageNumber))}: ${chalk.default.rgb(180,180,180)(formattedMessage)}`);
+        });
 
         await new Promise(resolve => setTimeout(resolve, 750));  // Wait before calling API in case of rapid messages
 

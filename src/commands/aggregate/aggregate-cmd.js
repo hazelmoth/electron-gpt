@@ -21,7 +21,7 @@ you must output the following 2 sections in your response:
 if there is already past memory in the input, FULLY INCLUDE THAT CONTEXT in your summary. DO NOT FORGET IMPORTANT DETAILS. 
 make sure to RETAIN important details like the identities of people you've met. 
 
-each of the two sections MUST BE UNDER 1000 words (so collectively 2000 words max). 
+each of the two sections MUST BE UNDER 700 words (so collectively 1400 words max). 
 if a section is too long, start cutting out the least important details, or combining related details together.
 
 include nothing other than the headers and bullet points. DO NOT offer any additional commentary, analysis, or explanation.`;

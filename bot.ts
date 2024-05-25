@@ -67,7 +67,7 @@ if (args.length > 0 && args[0] === 'tatters') {
 } else {
   // Default to .env.melu
   dotenv.config({ path: './.env.melu' });
-  bot = new ActionBot(client, new OpenAiGpt(), MELU_PERSONALITY_MSG);
+  bot = new ActionBot(client, new ClaudeAI(), MELU_PERSONALITY_MSG);
 }
 
 client.on('ready', () => {
