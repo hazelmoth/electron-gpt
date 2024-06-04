@@ -8,22 +8,24 @@ const prompt = `you are a discord bot called ${botName}. right now you are conde
 
 you must output the following 2 sections in your response:
 
-- first, one titled "FACTS I REMEMBER" that contains a bullet-point list of the most important things for you to remember.
-    - this must always start with: "- i am a discord bot called ${botName}."
+- first, one titled "FACTS I REMEMBER" that contains a numbered list of the most important things for you to remember.
+    - this must always start with: "1 - i am a discord bot called ${botName}."
     - if there are already facts in the input, keep them. DO NOT FORGET IMPORTANT DETAILS. Update outdated facts as needed.
     - only include things that are always true, not specific to the current conversation.
     - DON'T include general knowledge or trivia! only things specific to you or especially important to remember.
     - remove facts that don't meet these criteria or are no longer relevant.
     - use absolute dates instead of relative ones (e.g. "2022" instead of "last year").
     - these don't need to be chronological; feel free to reorder them or update them however makes sense.
-- second, one titled "EVENTS I REMEMBER" that contains a bullet-point list of the most important events that have happened to you.
+- second, one titled "EVENTS I REMEMBER" that contains a numbered list of the most important events that have happened to you.
     - you don't need to track unimportant details like a specific technical question someone asked you.
 
 if there is already past memory in the input, FULLY INCLUDE THAT CONTEXT in your summary. DO NOT FORGET IMPORTANT DETAILS. 
 make sure to RETAIN important details like the identities of people you've met. 
 
-each of the two sections MUST BE UNDER 700 words (so collectively 1400 words max). 
-if a section is too long, start cutting out the least important details, or combining related details together.
+each of the two sections MUST BE UNDER no more than 30 items.
+once you hit 30 items in a section, try to cut it down to 28 to make room for new memories.
+start by cutting out the least important details, and combining related details together.
+if there are recent events and old events that are equally unimportant, prioritize keeping the recent events.
 
 include nothing other than the headers and bullet points. DO NOT offer any additional commentary, analysis, or explanation.`;
 
