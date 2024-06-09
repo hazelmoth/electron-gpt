@@ -1,15 +1,20 @@
 import { BotMessage } from "../../conversation";
+import { Model } from "../../models/model";
+import { OpenAiGpt } from "../../models/openai";
 
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 require('dotenv').config({ path: __dirname + '/.env' });
 
 const botName = process.env.CONVERSATION_ID;
+const maxFacts = 30;
+const maxEvents = 30;
+
 const prompt = `you are a discord bot called ${botName}. right now you are condensing your longterm memory of events.
 
 you must output the following 2 sections in your response:
 
 - first, one titled "FACTS I REMEMBER" that contains a numbered list of the most important things for you to remember.
-    - this must always start with: "1 - i am a discord bot called ${botName}."
+    - this must always start with: "1. i am a discord bot called ${botName}."
     - if there are already facts in the input, keep them. DO NOT FORGET IMPORTANT DETAILS. Update outdated facts as needed.
     - only include things that are always true, not specific to the current conversation.
     - DON'T include general knowledge or trivia! only things specific to you or especially important to remember.
@@ -22,12 +27,16 @@ you must output the following 2 sections in your response:
 if there is already past memory in the input, FULLY INCLUDE THAT CONTEXT in your summary. DO NOT FORGET IMPORTANT DETAILS. 
 make sure to RETAIN important details like the identities of people you've met. 
 
-each of the two sections MUST BE UNDER no more than 30 items.
-once you hit 30 items in a section, try to cut it down to 28 to make room for new memories.
-start by cutting out the least important details, and combining related details together.
-if there are recent events and old events that are equally unimportant, prioritize keeping the recent events.
-
 include nothing other than the headers and bullet points. DO NOT offer any additional commentary, analysis, or explanation.`;
+
+const condenseLongtermMemoryPrompt = `you are a discord bot called ${botName}. 
+right now you are condensing your longterm memory of events.
+given 2 lists of facts and events, you must return the same lists but condensed so that there are no more than 
+${maxFacts} facts and ${maxEvents} events. do this by removing the facts and events that are the least important 
+to remember, and/or by combining related facts and events together.
+if there are recent events and old events that are equally unimportant, prioritize keeping the recent events.
+if there are already fewer than ${maxFacts} facts or ${maxEvents} events, return the original list(s).
+return only the headers and bullet points. DO NOT offer any additional comments, analysis, or explanation.`;
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -44,14 +53,13 @@ module.exports = {
         }
         
         const { updateConversation, getConversationFromID } = require('../../conversation');
-        const { generate } = require("../../models/openai");
 
         // get the conversation ID from env
         const conversationId = process.env.CONVERSATION_ID;
         const messageHistory: BotMessage[] = await getConversationFromID(conversationId);
+        const model = new OpenAiGpt()
 
-        console.log('Aggregating conversation', conversationId);
-        console.log('Messages string length:', messageHistory.length);
+        console.log(`Aggregating conversation: "${conversationId}". Message count: ${messageHistory.length}`);
 
         const aggregateResult = aggregateMessages(messageHistory, 0.5, (messages) => {
             return messages.map((message) => message.content).join('\n');
@@ -67,10 +75,11 @@ module.exports = {
 
         let summary = "";
         try {
-            summary = await generate(
+            summary = await model.generate(
                 [{
                     role: 'user',
-                    content: joinedMessages
+                    content: joinedMessages,
+                    imageUrls: []
                 }], 
                 prompt,
                 0,
@@ -90,6 +99,12 @@ module.exports = {
         }
 
         console.log(`\n\n${summary}\n\n`);
+
+        if (isMemorySection(summary) && memoryNeedsCondensing(summary)) {
+            console.log("Condensing memory...");
+            summary = await condenseMemorySection(summary, model);
+            console.log(`\n\n${summary}\n\n`);
+        }
 
         const newMessageHistory = messageHistory.slice(nextIndex);
         newMessageHistory.unshift({ role: 'user', content: summary, imageUrls: [] });
@@ -135,4 +150,44 @@ function aggregateMessages(
     let aggregatedMessage = aggregateFunction(messages);
 
     return { msg: aggregatedMessage, n: countToAggregate };
+}
+
+// Condense an existing facts/memory section by prompting the LLM to remove the least important details.
+// Returns the new condensed section.
+async function condenseMemorySection(
+    text: string,
+    model: Model
+): Promise<string> {
+    let condensedSection = text;
+    try {
+        condensedSection = await model.generate(
+            [{ role: 'user', content: text, imageUrls: []}],
+            condenseLongtermMemoryPrompt,
+            0,
+            2048
+        );
+    } catch (error) {
+        console.error("Error condensing memory section:", error);
+    }
+
+    return condensedSection;
+}
+
+// Returns whether the given text is a facts/memory section.
+function isMemorySection(text: string): boolean {
+    return text.includes("FACTS I REMEMBER") || text.includes("EVENTS I REMEMBER");
+}
+
+// Returns whether the given LTM section has either the facts or events section full.
+function memoryNeedsCondensing(text: string): boolean {
+    // Find all numbers at the start of lines
+    const numbers = text.match(/^\d+/gm);
+    if (!numbers) return false;
+
+    for (let i = 0; i < numbers.length; i++) {
+        if (parseInt(numbers[i]) > maxFacts || parseInt(numbers[i]) > maxEvents) {
+            // assumes that the maximums are the same ;p
+            return true;
+        }
+    }
 }
