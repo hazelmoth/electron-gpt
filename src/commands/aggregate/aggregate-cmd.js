@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const openai_1 = require("../../models/openai");
+const claudeai_1 = require("../../models/claudeai");
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 require('dotenv').config({ path: __dirname + '/.env' });
 const botName = process.env.CONVERSATION_ID;
@@ -49,7 +49,7 @@ module.exports = {
         // get the conversation ID from env
         const conversationId = process.env.CONVERSATION_ID;
         const messageHistory = await getConversationFromID(conversationId);
-        const model = new openai_1.OpenAiGpt();
+        const model = new claudeai_1.ClaudeAI();
         console.log(`Aggregating conversation: "${conversationId}". Message count: ${messageHistory.length}`);
         const aggregateResult = aggregateMessages(messageHistory, 0.5, (messages) => {
             return messages.map((message) => message.content).join('\n');

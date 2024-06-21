@@ -1,4 +1,5 @@
 import { BotMessage } from "../../conversation";
+import { ClaudeAI } from "../../models/claudeai";
 import { Model } from "../../models/model";
 import { OpenAiGpt } from "../../models/openai";
 
@@ -56,7 +57,7 @@ module.exports = {
         // get the conversation ID from env
         const conversationId = process.env.CONVERSATION_ID;
         const messageHistory: BotMessage[] = await getConversationFromID(conversationId);
-        const model = new OpenAiGpt()
+        const model = new ClaudeAI()
 
         console.log(`Aggregating conversation: "${conversationId}". Message count: ${messageHistory.length}`);
 
