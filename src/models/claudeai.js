@@ -12,7 +12,7 @@ dotenv.config({ path: __dirname + '/../../.env' });
 const anthropic = new sdk_1.default({
     apiKey: process.env.CLAUDE_API_KEY,
 });
-const model = "claude-3-opus-20240229";
+const model = "claude-3-5-sonnet-20240620";
 const MAX_IMAGE_SIZE_MB = 4.5;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const REDUCTION_FACTOR = 0.5; // Fixed reduction factor to halve the dimensions

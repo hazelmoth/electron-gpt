@@ -31,7 +31,6 @@ given 2 lists of facts and events, you must return the same lists but condensed 
 ${maxFacts} facts and ${maxEvents} events. do this by removing the facts and events that are the least important 
 to remember, and/or by combining related facts and events together.
 if there are recent events and old events that are equally unimportant, prioritize keeping the recent events.
-if there are already fewer than ${maxFacts} facts or ${maxEvents} events, return the original list(s).
 return only the headers and bullet points. DO NOT offer any additional comments, analysis, or explanation.`;
 module.exports = {
     data: new SlashCommandBuilder()
